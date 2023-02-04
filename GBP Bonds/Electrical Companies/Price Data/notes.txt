@@ -1,0 +1,1 @@
+I realised halfway through many electricity generators were index linked.  I went back and deleted all them. but in case i missed some, check for very strange prices very low and high and constant increasing.

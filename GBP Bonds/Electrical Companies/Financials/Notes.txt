@@ -1,0 +1,2 @@
+National Grid West Midlands only had financials for 2006-2008 so I downloaded financials for Nat Grid PLC. Not sure if the PLC should be used for all bonds or what? I read that a parent cannot be liable for a subsidiaries debts. So it should be sub. I downloaded the financials for the immediate parent : National Grid Electricity Distribution Network Holdings Ltd
+
