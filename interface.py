@@ -13,7 +13,6 @@ from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 from threading import Thread
 import xlwings as xw
 
-
 class myTool:
     def __init__(self, root):
         self.root = root
@@ -238,15 +237,15 @@ def new_excel(df):
 
     
 if __name__=='__main__':
+    
+    QUERY = {"Main2":"SELECT DISTINCT ISIN, Issuer, Coupon, strftime('%d-%m-%Y', Maturity) AS Maturity FROM Master",
+             "Main":"""SELECT DISTINCT Prices.ISIN, Master.Issuer, Master.Coupon, strftime('%d-%m-%Y', Master.Maturity) AS Maturity
+                       FROM Master 
+                       INNER JOIN Prices
+                       ON Master.'Preferred RIC' = Prices.ID"""}
 
     root = Tk()
     root.title("Database Viwer")
     root.geometry("550x550")
     application = myTool(root)
     root.mainloop()
-    
-QUERY = {"Main2":"SELECT DISTINCT ISIN, Issuer, Coupon, strftime('%d-%m-%Y', Maturity) AS Maturity FROM Master",
-         "Main":"""SELECT DISTINCT Prices.ISIN, Master.Issuer, Master.Coupon, strftime('%d-%m-%Y', Master.Maturity) AS Maturity
-                   FROM Master 
-                   INNER JOIN Prices
-                   ON Master.'Preferred RIC' = Prices.ID"""}
