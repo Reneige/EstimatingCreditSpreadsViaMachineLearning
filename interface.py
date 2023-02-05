@@ -248,5 +248,6 @@ if __name__=='__main__':
     root.title("Database Viwer")
     root.geometry("550x550")
     application = myTool(root)
+    root.lift()
     root.mainloop()
     
