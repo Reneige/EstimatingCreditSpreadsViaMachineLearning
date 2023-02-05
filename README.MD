@@ -9,7 +9,7 @@
 
 ## Background
 
-This tool was developed as part of an ongoing research project into the use of machine learning algorithms to predict credit spreads on corporate bonds. The current version of this tool implements GUI driven functionality to parse the raw research data and inject it into an SQLite database, as well as GUI driven data exploration tools. Later versions of this tool will implement model training and model prediction features. 
+This tool was developed as part of an ongoing research project into the use of machine learning algorithms to predict credit spreads on corporate bonds. The current version of this tool implements GUI driven functionality to parse the raw research data from Excel files in the GBP Bonds folder and inject it into an SQLite database. The tool also offers some GUI driven data exploration tools. Later versions will implement model training and model prediction features. 
 
 ## Getting Started
 
