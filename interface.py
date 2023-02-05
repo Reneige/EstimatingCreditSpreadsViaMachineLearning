@@ -5,7 +5,7 @@ Created on Sun Jan 29 20:55:44 2023
 @author: Rene Alby
 """
 
-from tkinter import Tk, filedialog, messagebox, ttk, LabelFrame, Button, Scrollbar, Toplevel, Menu
+from tkinter import Tk, ttk, LabelFrame, Button, Scrollbar, Toplevel, Menu
 import pandas as pd
 import sqlite3
 import matplotlib.pyplot as plt
@@ -13,11 +13,6 @@ from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 from threading import Thread
 import xlwings as xw
 
-QUERY = {"Main2":"SELECT DISTINCT ISIN, Issuer, Coupon, strftime('%d-%m-%Y', Maturity) AS Maturity FROM Master",
-         "Main":"""SELECT DISTINCT Prices.ISIN, Master.Issuer, Master.Coupon, strftime('%d-%m-%Y', Master.Maturity) AS Maturity
-                   FROM Master 
-                   INNER JOIN Prices
-                   ON Master.'Preferred RIC' = Prices.ID"""}
 
 class myTool:
     def __init__(self, root):
@@ -249,3 +244,9 @@ if __name__=='__main__':
     root.geometry("550x550")
     application = myTool(root)
     root.mainloop()
+    
+QUERY = {"Main2":"SELECT DISTINCT ISIN, Issuer, Coupon, strftime('%d-%m-%Y', Maturity) AS Maturity FROM Master",
+         "Main":"""SELECT DISTINCT Prices.ISIN, Master.Issuer, Master.Coupon, strftime('%d-%m-%Y', Master.Maturity) AS Maturity
+                   FROM Master 
+                   INNER JOIN Prices
+                   ON Master.'Preferred RIC' = Prices.ID"""}
