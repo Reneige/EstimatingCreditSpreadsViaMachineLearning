@@ -26,11 +26,11 @@ class myTool:
         
         # create frame with title
         self.frame1 = LabelFrame(root, text="Database Viewer")
-        self.frame1.place(height=250, width=520)
+        self.frame1.place(height=250, width=550)
         
         # place treeview within frame
         self.tree_view = ttk.Treeview(self.frame1)
-        self.tree_view.place(height=200, width=500, x=0, y=0)
+        self.tree_view.place(height=220, width=530, x=0, y=0)
         
         #add scrollbars to treeview
         self.treescrolly = Scrollbar(self.frame1, orient="vertical", command=self.tree_view.yview)
@@ -43,9 +43,9 @@ class myTool:
         
         # Create frame with title
         self.label_file = LabelFrame(root, text="Control Panel")
-        self.label_file.place(height=250, width=500, y=300)
+        self.label_file.place(height=250, width=550, y=250)
 
-        self.button3 = Button(self.label_file, text="Refresh View", command=lambda: new_excel(self.run_query(QUERY["Main"])))
+        self.button3 = Button(self.label_file, text="Export Data", command=lambda: new_excel(self.run_query(QUERY["Main"])))
         self.button3.grid(row=0, column=4)
 
 
@@ -70,7 +70,7 @@ class myTool:
         
         self.datamenu.add_command(label="Browse Price Data", command=lambda: self.popup_tree(self.run_query('SELECT * FROM Prices')))
         self.datamenu.add_separator()
-        self.datamenu.add_command(label="Browse Financial Summary", command=lambda: self.popup_tree(self.run_query("SELECT * FROM Financials WHERE statement='Financial-Summary'"))) # WHERE Statement='Financial-Summary'")))
+        self.datamenu.add_command(label="Browse Financial Summary", command=lambda: self.popup_tree(self.run_query("SELECT * FROM Financials WHERE statement='Financial-Summary'"))) 
         self.datamenu.add_command(label="Browse Income Statement", command=lambda: self.popup_tree(self.run_query("SELECT * FROM Financials WHERE statement='Income-Statement'")))
         self.datamenu.add_command(label="Browse Balance Sheet", command=lambda: self.popup_tree(self.run_query("SELECT * FROM Financials WHERE statement='Balance-Sheet'")))
         self.datamenu.add_command(label="Browse Cash Flow Statement", command=lambda: self.popup_tree(self.run_query("SELECT * FROM Financials WHERE statement='Cash-Flow'")))
