@@ -4,7 +4,7 @@
   </a>
   <h1><a href="https://github.com/Reneige/EstimatingCreditSpreadsViaMachineLearning/">Estimating Credit Spreads Via Machine Learining</a></h1>
 <!-- Short description: -->
-  <h3>Developed using Python 3.9.7, Pandas 1.3.5, Tkinter V8.6, Tensorflow 2.7.0, SQLite 3.36.0, matplotlib 3.4.3, xlwings 0.24.9</h3>
+  <h3>Developed using Python 3.9.7, Pandas 1.3.5, Tkinter V8.6, Tensorflow 2.7.0, SQLite 3.36.0, Matplotlib 3.4.3, XLWings 0.24.9</h3>
 </div>
 
 ## Background
