@@ -12,15 +12,18 @@ import matplotlib.pyplot as plt
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 from threading import Thread
 import xlwings as xw
+import numpy as np
 
 class myTool:
     def __init__(self, root):
         self.root = root
+        self.database = r".\database.db"
         self.generate_view()
         self.generate_panel()
         self.generate_menu()
         self.generate_drop_down_menu()
         self.load_data(self.run_query(QUERY["Main"]))
+        
     
     def generate_view(self):
         
@@ -93,18 +96,23 @@ class myTool:
         
         # creates a drop-down menu and binds it to the right click on the treeview
         self.popup_menu = Menu(self.tree_view, tearoff=0)
-        self.popup_menu.add_command(label="Chart Prices", command=lambda: self.plot_query("Date","Bid","Prices","ISIN",self.ITEM()))
-        self.popup_menu.add_command(label="Chart Yield", command=lambda: self.plot_query("Date","BidYld","Prices","ISIN",self.ITEM()))
-        self.popup_menu.add_command(label="Chart Z-Spread", command=lambda: self.plot_query("Date","Z Spread","Prices","ISIN",self.ITEM()))
+        self.popup_menu.add_command(label="Chart Prices", command=lambda: self.plot_query("Date","Bid","Prices","ISIN",self.ISIN()))
+        self.popup_menu.add_command(label="Chart Yield", command=lambda: self.plot_query("Date","BidYld","Prices","ISIN",self.ISIN()))
+        self.popup_menu.add_command(label="Chart Z-Spread", command=lambda: self.plot_query("Date","Z Spread","Prices","ISIN",self.ISIN()))
         self.popup_menu.add_separator()
-        self.popup_menu.add_command(label="View Bond Info", command=lambda: self.popup_tree(self.transpose(self.run_query(f"SELECT * FROM Master WHERE ISIN = '{self.ITEM()}'"))))
+        self.popup_menu.add_command(label="View Bond Info", command=lambda: self.popup_tree(self.transpose(self.run_query(f"SELECT * FROM Master WHERE ISIN = '{self.ISIN()}'"))))
         self.popup_menu.add_separator()
-        self.popup_menu.add_command(label="Browse Price Data", command=lambda: self.popup_tree(self.run_query(f"SELECT * FROM Prices WHERE ISIN = '{self.ITEM()}' ORDER BY Date ASC")))
-        self.popup_menu.add_command(label="Browse Financial Summary Data", command=lambda: self.popup_tree(self.query_financials_by_isin("*",self.ITEM(),"Financial-Summary")))
-        self.popup_menu.add_command(label="Browse Income Statement Data", command=lambda: self.popup_tree(self.query_financials_by_isin("*",self.ITEM(),"Income-Statement")))
-        self.popup_menu.add_command(label="Browse Balance-Sheet Data", command=lambda: self.popup_tree(self.query_financials_by_isin("*",self.ITEM(),"Balance-Sheet")))
-        self.popup_menu.add_command(label="Browse Cash Flow Data", command=lambda: self.popup_tree(self.query_financials_by_isin("*",self.ITEM(),"Cash-Flow")))
-        self.popup_menu.add_command(label="TEST")
+        self.popup_menu.add_command(label="Browse Price Data", command=lambda: self.popup_tree(self.run_query(f"SELECT * FROM Prices WHERE ISIN = '{self.ISIN()}' ORDER BY Date ASC")))
+        self.popup_menu.add_command(label="Browse Financial Summary Data", command=lambda: self.popup_tree(self.query_financials_by_isin("*",self.ISIN(),"Financial-Summary")))
+        self.popup_menu.add_command(label="Browse Income Statement Data", command=lambda: self.popup_tree(self.query_financials_by_isin("*",self.ISIN(),"Income-Statement")))
+        self.popup_menu.add_command(label="Browse Balance-Sheet Data", command=lambda: self.popup_tree(self.query_financials_by_isin("*",self.ISIN(),"Balance-Sheet")))
+        self.popup_menu.add_command(label="Browse Cash Flow Data", command=lambda: self.popup_tree(self.query_financials_by_isin("*",self.ISIN(),"Cash-Flow")))
+        self.popup_menu.add_command(label="Cash", command=lambda: self.popup_tree(self.query_item_by_isin(cash,self.ISIN())))
+        self.popup_menu.add_command(label="Debt", command=lambda: self.popup_tree(self.query_item_by_isin(debt,self.ISIN())))
+        self.popup_menu.add_command(label="Pre-Tax Income", command=lambda: self.popup_tree(self.query_item_by_isin(income, self.ISIN())))
+        self.popup_menu.add_command(label="Total Assets", command=lambda: self.popup_tree(self.query_item_by_isin(assets, self.ISIN())))
+        self.popup_menu.add_command(label="Cash and Debt", command=lambda: self.popup_tree(self.merge_item_by_isin(cash, debt, self.ISIN())))
+        self.popup_menu.add_command(label="Cash, Debt, Income, Asset", command=lambda: self.popup_tree(self.recursive_merge([cash, debt, assets, income], self.ISIN())))
 
         self.tree_view.bind("<Button-3>", self.context_menu)
 
@@ -122,6 +130,11 @@ class myTool:
         df = df.transpose()
         df = df.reset_index()
         return df
+
+    def clean(self, df):
+        df = df.dropna()
+        df = df.reset_index()
+        return df
     
     def query_financials_by_isin(self, columns, isin, statement):
         query = f"""SELECT {columns} 
@@ -132,6 +145,33 @@ class myTool:
                      AND Statement='{statement}'"""
                      
         return self.run_query(query)
+
+    def query_item_by_isin(self, item, isin):
+        query = f"""SELECT DISTINCT strftime('%d-%m-%Y', PeriodEndDate) AS Date,
+                    {item} 
+                    FROM Financials
+                    WHERE Company = (SELECT Issuer 
+                                     FROM Master 
+                                     WHERE ISIN='{isin}')"""
+                     
+        return self.run_clean_query(query)
+
+    def merge_item_by_isin(self, item, item2, isin):
+        ''' since the parsed data is unstructured and does not have dates as a primary key which 
+            results in duplication. To get around this, we merge the dataframes by date
+        '''
+        df1 = self.query_item_by_isin(item, isin)
+        df2 = self.query_item_by_isin(item2, isin)       
+        return df1.merge(df2, on='Date')
+
+    def recursive_merge(self, list_of_items, isin):
+        ''' recursively merges data through queries stored in a list '''
+        
+        df = self.query_item_by_isin(list_of_items.pop(), isin)
+        if len(list_of_items) > 0:
+            return df.merge(self.recursive_merge(list_of_items, isin), on='Date')
+        else:
+            return df     
         
     def plot_query(self, xaxis,yaxis,table,target_col, target_id):                
         query = f"""SELECT {xaxis}, `{yaxis}` 
@@ -142,12 +182,20 @@ class myTool:
 
     def run_query(self, query):
         print(query)
-        conn = sqlite3.Connection(r".\database.db")
+        conn = sqlite3.Connection(self.database)
         df = pd.read_sql(f"{query}", conn)
         conn.close()
-        df.dropna(how='all', axis=1, inplace=True)
         return df
-
+    
+    def run_clean_query(self, query):
+        print(query)
+        conn = sqlite3.Connection(self.database)        
+        df = pd.read_sql(f"{query}", conn)
+        df = df.replace('nan', np.nan)
+        df = df.dropna()
+        conn.close()
+        return df
+    
     def load_data(self, df):
         
         # clear data
@@ -180,6 +228,7 @@ class myTool:
         ax.set_title(title)
 
     def popup_tree(self, df):        
+        
         # create popup window with tree view and data export functionality
         pop_up = Toplevel()
         pop_up.title('data viewer')
@@ -217,12 +266,12 @@ class myTool:
     def rebuild_database(self):
         # all the work here is done in the imported database_builder class
         from data_aggregator import database_builder
-        db = database_builder()
+        database_builder()
         
         # refresh view when database is rebuilt
         self.load_data(self.run_query(QUERY["Main"]))
   
-    def ITEM(self):
+    def ISIN(self):
         return self.tree_view.item(self.item)['values'][0]
     
 def threadit(targ):
@@ -243,6 +292,21 @@ if __name__=='__main__':
                        FROM Master 
                        INNER JOIN Prices
                        ON Master.'Preferred RIC' = Prices.ID"""}
+    ITEM = {"Date":"strftime('%d-%m-%Y', PeriodEndDate) AS Date",
+            "Cash":"CAST(NetCashFlowfromOperatingActivities AS Decimal) AS NetCashFlowfromOperatingActivities",
+            "Debt":"CAST(DebtLongTermTotal AS Decimal) AS DebtLongTermTotal",
+            "TotalAssets":"CAST(TotalAssets AS Decimal) AS TotalAssets",
+            "PretaxIncome":"CAST(IncomebeforeTaxes AS Decimal) AS PretaxIncome"}
+   
+
+    
+    cash = "CAST(NetCashFlowfromOperatingActivities AS Decimal) AS NetCashFlowfromOperatingActivities"
+    debt = "CAST(DebtLongTermTotal AS Decimal) AS DebtLongTermTotal"
+    assets = "CAST(TotalAssets AS Decimal) AS TotalAssets"
+    income = "CAST(IncomebeforeTaxes AS Decimal) AS PretaxIncome"
+    
+    # LOTS OF PROBLEMS- getting multiple dates from different cash flows. Division is often not working                              
+                       
 
     root = Tk()
     root.title("Database Viwer")

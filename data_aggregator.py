@@ -113,13 +113,15 @@ class database_builder:
         pricedata = pd.concat(list_of_dfs)
         
         # aggregate financial data
-        # the handling here is different because it is a list of lists, so need to flatten the list first 
+        # the handling here is different because it is a list of lists, so need to flatten the list first
         list_of_dfs2 = list(map(self.read_financials,self.financial_files))
         list_of_dfs2 = [item for sublist in list_of_dfs2 for item in sublist]
         findata = pd.concat(list_of_dfs2)
-       
-        # convert columns to lower case and drop duplicates
+              
+        # convert columns to lower case and drop duplicates and remove spaces and dashes
         findata = findata.loc[:,~findata.columns.str.lower().duplicated()]
+        findata.columns = findata.columns.str.replace(' ', '')
+        findata.columns = findata.columns.str.replace('-', '')
       
         # aggregate bond universe / security master data
         list_of_dfs3 = list(map(self.read_bond_universe_master,self.bond_universe))
