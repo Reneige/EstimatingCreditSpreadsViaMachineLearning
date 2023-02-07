@@ -108,9 +108,11 @@ class database_builder:
 
 
     def run(self):
-        # aggregate price data into dataframes
+        # aggregate price data into dataframes and removes spaces and dashes from column names
         list_of_dfs = list(map(self.read_price,self.price_files))
         pricedata = pd.concat(list_of_dfs)
+        pricedata.columns = pricedata.columns.str.replace(' ', '')
+        pricedata.columns = pricedata.columns.str.replace('-', '')        
         
         # aggregate financial data
         # the handling here is different because it is a list of lists, so need to flatten the list first
@@ -118,15 +120,17 @@ class database_builder:
         list_of_dfs2 = [item for sublist in list_of_dfs2 for item in sublist]
         findata = pd.concat(list_of_dfs2)
               
-        # convert columns to lower case and drop duplicates and remove spaces and dashes
+        # convert columns to lower case and drop duplicates and remove spaces and dashes from column names
         findata = findata.loc[:,~findata.columns.str.lower().duplicated()]
         findata.columns = findata.columns.str.replace(' ', '')
         findata.columns = findata.columns.str.replace('-', '')
       
-        # aggregate bond universe / security master data
+        # aggregate bond universe / security master data and remove spaces and dashes from column names
         list_of_dfs3 = list(map(self.read_bond_universe_master,self.bond_universe))
         security_master = pd.concat(list_of_dfs3)
-       
+        security_master.columns = security_master.columns.str.replace(' ', '')
+        security_master.columns = security_master.columns.str.replace('-', '')
+        
         # build database
         self.build_database(pricedata, security_master, findata)
         self.progress_step()

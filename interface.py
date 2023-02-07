@@ -49,7 +49,9 @@ class myTool:
         self.label_file = LabelFrame(root, text="Control Panel")
         self.label_file.place(height=250, width=550, y=250)
 
-        self.button3 = Button(self.label_file, text="Export Data", command=lambda: new_excel(self.run_query(QUERY["Main"])))
+        self.button3 = Button(self.label_file, text="Generate Research data Table (30 sec)", 
+                              command=lambda: new_excel(self.execute()))
+        
         self.button3.grid(row=0, column=4)
 
 
@@ -114,12 +116,16 @@ class myTool:
         self.fins_menu.add_command(label="Browse Income Statement Data", command=lambda: self.popup_tree(self.query_financials_by_isin("*",self.ISIN(),"Income-Statement")))
         self.fins_menu.add_command(label="Browse Balance-Sheet Data", command=lambda: self.popup_tree(self.query_financials_by_isin("*",self.ISIN(),"Balance-Sheet")))
         self.fins_menu.add_command(label="Browse Cash Flow Data", command=lambda: self.popup_tree(self.query_financials_by_isin("*",self.ISIN(),"Cash-Flow")))
-        self.fins_menu.add_command(label="Cash", command=lambda: self.popup_tree(self.query_item_by_isin(cash,self.ISIN())))
-        self.fins_menu.add_command(label="Debt", command=lambda: self.popup_tree(self.query_item_by_isin(debt,self.ISIN())))
-        self.fins_menu.add_command(label="Pre-Tax Income", command=lambda: self.popup_tree(self.query_item_by_isin(income, self.ISIN())))
+        self.fins_menu.add_separator()
         self.fins_menu.add_command(label="Total Assets", command=lambda: self.popup_tree(self.query_item_by_isin(assets, self.ISIN())))
-        self.fins_menu.add_command(label="Cash and Debt", command=lambda: self.popup_tree(self.merge_item_by_isin(cash, debt, self.ISIN())))
-        self.fins_menu.add_command(label="Cash, Debt, Income, Asset", command=lambda: self.popup_tree(self.recursive_merge([cash, debt, assets, income], self.ISIN())))
+        self.fins_menu.add_command(label="Total Liabilities", command=lambda: self.popup_tree(self.query_item_by_isin(liabilities, self.ISIN())))
+        self.fins_menu.add_separator()
+        self.fins_menu.add_command(label="Cash and Debt", command=lambda: self.popup_tree(self.merge_item_by_isin(cashflow, debt, self.ISIN())))
+        self.fins_menu.add_separator()
+        self.fins_menu.add_command(label="Cash, Debt, Income, Asset", command=lambda: self.popup_tree(self.recursive_merge([cashflow, debt, assets, income], self.ISIN())))
+        self.fins_menu.add_command(label="Key Financials", command=lambda: self.popup_tree(self.recursive_merge([revenue, income, cashflow, assets, liabilities, debt, current_assets, current_liabilities], self.ISIN())))
+        self.fins_menu.add_command(label="Prices Merged", command=lambda: self.popup_tree(self.merge_prices(self.recursive_merge([revenue, income, cashflow, assets, liabilities, debt, current_assets, current_liabilities], self.ISIN()),self.ISIN())))
+        self.fins_menu.add_command(label="Static Bond Data Added", command=lambda: self.popup_tree(self.add_static_bond_data(self.recursive_merge([revenue, income, cashflow, assets, liabilities, debt, current_assets, current_liabilities], self.ISIN()),'SeniorityType',self.ISIN())))
 
         # bind right-click to the context menu method
         self.tree_view.bind("<Button-3>", self.context_menu)
@@ -233,7 +239,7 @@ class myTool:
         return self.run_query(query)
 
     def query_item_by_isin(self, item, isin):
-        query = f"""SELECT DISTINCT strftime('%d-%m-%Y', PeriodEndDate) AS Date,
+        query = f"""SELECT DISTINCT PeriodEndDate AS Date,
                     {item} 
                     FROM Financials
                     WHERE Company = (SELECT Issuer 
@@ -245,7 +251,7 @@ class myTool:
     def merge_item_by_isin(self, item, item2, isin):
         ''' Note: The raw research data is parsed in an unstructured manner and so does not have dates as a 
             primary key which results in duplication of dates when multiple items are queried. 
-            To get around this, we merge the dataframes by date
+            To get around this, I have merged the dataframes by date
         '''
         df1 = self.query_item_by_isin(item, isin)
         df2 = self.query_item_by_isin(item2, isin)       
@@ -259,6 +265,22 @@ class myTool:
             return df.merge(self.recursive_merge(list_of_items, isin), on='Date')
         else:
             return df     
+
+    def merge_prices(self, df, isin):
+        ''' This method brings all the price data into the dataframe by merging the dataframes on the date columns
+        '''
+        df1 = self.run_query(f"SELECT * FROM Prices WHERE ISIN = '{isin}' ORDER BY Date ASC")
+        return df1.merge(df, on='Date', how='left').sort_values(by='Date',ascending=False)
+
+    def add_static_bond_data(self,df,item,isin):
+        ''' queries the Master bond list of static data by isin and inserts as a column into a dataframe'''        
+        df1 = self.run_query(f"SELECT {item} FROM Master WHERE ISIN = '{isin}'")
+        try: 
+            df[[item]] = df1[item].iloc[0]
+        except:
+            df[[item]] = 0
+        return df
+        
         
     def plot_query(self, xaxis,yaxis,table,target_col, target_id):                
         query = f"""SELECT {xaxis}, `{yaxis}` 
@@ -296,6 +318,19 @@ class myTool:
         # refresh view when database is rebuilt
         self.load_data(self.run_query(QUERY["Main"]))
   
+    def execute(self):
+        ''' Produces main research data table'''
+        df = self.run_query("SELECT DISTINCT ISIN FROM Prices")
+        isins = df['ISIN'].tolist()
+        agg =[]
+        for isin in isins:
+            data = self.recursive_merge([revenue, income, cashflow, assets, liabilities,
+                                         debt, current_assets, current_liabilities],isin)
+            data = self.merge_prices(data, isin)
+            data = self.add_static_bond_data(data, 'SeniorityType', isin)
+            agg.append(data)
+        return pd.concat(agg)
+            
     
 def threadit(targ):
     tr = Thread(target=targ)
@@ -311,34 +346,31 @@ def new_excel(df):
 if __name__=='__main__':
     
     # WORK IN PROGRESS BELOW
-    QUERY = {"Main2":"SELECT DISTINCT ISIN, Issuer, Coupon, strftime('%d-%m-%Y', Maturity) AS Maturity FROM Master",
+    QUERY = {"Main2":"SELECT DISTINCT ISIN, Issuer, Coupon, Maturity FROM Master",
              "Main":"""SELECT DISTINCT Prices.ISIN, Master.Issuer, Master.Coupon, strftime('%d-%m-%Y', Master.Maturity) AS Maturity
                        FROM Master 
                        INNER JOIN Prices
-                       ON Master.'Preferred RIC' = Prices.ID"""}
-    ITEM = {"Date":"strftime('%d-%m-%Y', PeriodEndDate) AS Date",
-            "Cash":"CAST(NetCashFlowfromOperatingActivities AS Decimal) AS NetCashFlowfromOperatingActivities",
-            "Debt":"CAST(DebtLongTermTotal AS Decimal) AS DebtLongTermTotal",
-            "TotalAssets":"CAST(TotalAssets AS Decimal) AS TotalAssets",
-            "PretaxIncome":"CAST(IncomebeforeTaxes AS Decimal) AS PretaxIncome"}
+                       ON Master.'PreferredRIC' = Prices.ID"""}
+
    
 
     
-    cash = "CAST(NetCashFlowfromOperatingActivities AS Decimal) AS NetCashFlowfromOperatingActivities"
+    cashflow = "CAST(NetCashFlowfromOperatingActivities AS Decimal) AS NetCashFlowfromOperatingActivities"
     debt = "CAST(DebtLongTermTotal AS Decimal) AS DebtLongTermTotal"
     assets = "CAST(TotalAssets AS Decimal) AS TotalAssets"  
-    liabilities = "CAST(TotalLiabilities AS Decimal) AS TotalLiabilities"
+    liabilities = "CAST(TotalCurrentLiabilities AS Decimal) + CAST(TotalNonCurrentLiabilities AS Decimal) AS TotalLiabilities"
     current_liabilities = "CAST(TotalCurrentLiabilities AS Decimal) AS TotalCurrentLiabilities"
     current_assets = "CAST(TotalCurrentAssets AS Decimal) AS TotalCurrentAssets"
     revenue = "CAST(RevenuefromBusinessActivitiesTotal AS Decimal) AS RevenuefromBusinessActivitiesTotal"
     income = "CAST(IncomebeforeTaxes AS Decimal) AS PretaxIncome"
 
+
     
-    # LOTS OF PROBLEMS- getting multiple dates from different cash flows. Division is often not working                              
+    # TotalLiabilities is a dupe column and the blank is being retained. Same may be happening elsewhere with total assets                          
                        
 
     root = Tk()
-    root.title("Database Viwer")
+    root.title("Research Data Tool")
     root.geometry("550x550")
     application = myTool(root)
     root.lift()
