@@ -24,6 +24,7 @@ class myTool:
         self.generate_drop_down_menu()
         self.load_data(self.run_query(QUERY["Main"]))
         
+    ''' ------------------------------ GUI Methods  ----------------------------------'''
     
     def generate_view(self):
         
@@ -87,14 +88,13 @@ class myTool:
         self.schema.add_command(label="Check Prices Schema", command=lambda: self.popup_tree(self.run_query("PRAGMA table_info(Prices)")))
         self.schema.add_command(label="Check Financials Schema", command=lambda: self.popup_tree(self.run_query("PRAGMA table_info(Financials)")))
         self.dbmenu.add_command(label="Rebuild Database", command=lambda: threadit(self.rebuild_database))
-
     
         # Add menu to root window        
         self.root.config(menu=self.topmenu)
         
-    def generate_drop_down_menu(self):
+    def generate_drop_down_menu(self):       
+        ''' creates a drop-down context menu and binds it to the right click on the treeview '''
         
-        # creates a drop-down menu and binds it to the right click on the treeview
         self.popup_menu = Menu(self.tree_view, tearoff=0)
         self.popup_menu.add_command(label="Chart Prices", command=lambda: self.plot_query("Date","Bid","Prices","ISIN",self.ISIN()))
         self.popup_menu.add_command(label="Chart Yield", command=lambda: self.plot_query("Date","BidYld","Prices","ISIN",self.ISIN()))
@@ -103,100 +103,39 @@ class myTool:
         self.popup_menu.add_command(label="View Bond Info", command=lambda: self.popup_tree(self.transpose(self.run_query(f"SELECT * FROM Master WHERE ISIN = '{self.ISIN()}'"))))
         self.popup_menu.add_separator()
         self.popup_menu.add_command(label="Browse Price Data", command=lambda: self.popup_tree(self.run_query(f"SELECT * FROM Prices WHERE ISIN = '{self.ISIN()}' ORDER BY Date ASC")))
-        self.popup_menu.add_command(label="Browse Financial Summary Data", command=lambda: self.popup_tree(self.query_financials_by_isin("*",self.ISIN(),"Financial-Summary")))
-        self.popup_menu.add_command(label="Browse Income Statement Data", command=lambda: self.popup_tree(self.query_financials_by_isin("*",self.ISIN(),"Income-Statement")))
-        self.popup_menu.add_command(label="Browse Balance-Sheet Data", command=lambda: self.popup_tree(self.query_financials_by_isin("*",self.ISIN(),"Balance-Sheet")))
-        self.popup_menu.add_command(label="Browse Cash Flow Data", command=lambda: self.popup_tree(self.query_financials_by_isin("*",self.ISIN(),"Cash-Flow")))
-        self.popup_menu.add_command(label="Cash", command=lambda: self.popup_tree(self.query_item_by_isin(cash,self.ISIN())))
-        self.popup_menu.add_command(label="Debt", command=lambda: self.popup_tree(self.query_item_by_isin(debt,self.ISIN())))
-        self.popup_menu.add_command(label="Pre-Tax Income", command=lambda: self.popup_tree(self.query_item_by_isin(income, self.ISIN())))
-        self.popup_menu.add_command(label="Total Assets", command=lambda: self.popup_tree(self.query_item_by_isin(assets, self.ISIN())))
-        self.popup_menu.add_command(label="Cash and Debt", command=lambda: self.popup_tree(self.merge_item_by_isin(cash, debt, self.ISIN())))
-        self.popup_menu.add_command(label="Cash, Debt, Income, Asset", command=lambda: self.popup_tree(self.recursive_merge([cash, debt, assets, income], self.ISIN())))
+        self.popup_menu.add_separator()
+        
+        # create cascading menu - financials
+        self.fins_menu = Menu(self.popup_menu, tearoff=0)
+        self.popup_menu.add_cascade(label="Financials", menu=self.fins_menu)
+        
+        # add financials to cascade
+        self.fins_menu.add_command(label="Browse Financial Summary Data", command=lambda: self.popup_tree(self.query_financials_by_isin("*",self.ISIN(),"Financial-Summary")))
+        self.fins_menu.add_command(label="Browse Income Statement Data", command=lambda: self.popup_tree(self.query_financials_by_isin("*",self.ISIN(),"Income-Statement")))
+        self.fins_menu.add_command(label="Browse Balance-Sheet Data", command=lambda: self.popup_tree(self.query_financials_by_isin("*",self.ISIN(),"Balance-Sheet")))
+        self.fins_menu.add_command(label="Browse Cash Flow Data", command=lambda: self.popup_tree(self.query_financials_by_isin("*",self.ISIN(),"Cash-Flow")))
+        self.fins_menu.add_command(label="Cash", command=lambda: self.popup_tree(self.query_item_by_isin(cash,self.ISIN())))
+        self.fins_menu.add_command(label="Debt", command=lambda: self.popup_tree(self.query_item_by_isin(debt,self.ISIN())))
+        self.fins_menu.add_command(label="Pre-Tax Income", command=lambda: self.popup_tree(self.query_item_by_isin(income, self.ISIN())))
+        self.fins_menu.add_command(label="Total Assets", command=lambda: self.popup_tree(self.query_item_by_isin(assets, self.ISIN())))
+        self.fins_menu.add_command(label="Cash and Debt", command=lambda: self.popup_tree(self.merge_item_by_isin(cash, debt, self.ISIN())))
+        self.fins_menu.add_command(label="Cash, Debt, Income, Asset", command=lambda: self.popup_tree(self.recursive_merge([cash, debt, assets, income], self.ISIN())))
 
+        # bind right-click to the context menu method
         self.tree_view.bind("<Button-3>", self.context_menu)
 
-    def context_menu(self, event):
+    def context_menu(self, event):       
+        ''' captures the right-click event and sets the row clicked to item instance variable '''
         
-        # captures the right-click event and sets the row to item
         self.item =self.tree_view.identify_row(event.y)       
         try:
             self.tree_view.selection_set(self.item)
             self.popup_menu.tk_popup(event.x_root, event.y_root, 0)
         finally:
             self.popup_menu.grab_release()
-    
-    def transpose(self, df):
-        df = df.transpose()
-        df = df.reset_index()
-        return df
 
-    def clean(self, df):
-        df = df.dropna()
-        df = df.reset_index()
-        return df
-    
-    def query_financials_by_isin(self, columns, isin, statement):
-        query = f"""SELECT {columns} 
-                     FROM Financials
-                     WHERE Company = (SELECT Issuer 
-                                      FROM Master 
-                                      WHERE ISIN='{isin}') 
-                     AND Statement='{statement}'"""
-                     
-        return self.run_query(query)
-
-    def query_item_by_isin(self, item, isin):
-        query = f"""SELECT DISTINCT strftime('%d-%m-%Y', PeriodEndDate) AS Date,
-                    {item} 
-                    FROM Financials
-                    WHERE Company = (SELECT Issuer 
-                                     FROM Master 
-                                     WHERE ISIN='{isin}')"""
-                     
-        return self.run_clean_query(query)
-
-    def merge_item_by_isin(self, item, item2, isin):
-        ''' since the parsed data is unstructured and does not have dates as a primary key which 
-            results in duplication. To get around this, we merge the dataframes by date
-        '''
-        df1 = self.query_item_by_isin(item, isin)
-        df2 = self.query_item_by_isin(item2, isin)       
-        return df1.merge(df2, on='Date')
-
-    def recursive_merge(self, list_of_items, isin):
-        ''' recursively merges data through queries stored in a list '''
-        
-        df = self.query_item_by_isin(list_of_items.pop(), isin)
-        if len(list_of_items) > 0:
-            return df.merge(self.recursive_merge(list_of_items, isin), on='Date')
-        else:
-            return df     
-        
-    def plot_query(self, xaxis,yaxis,table,target_col, target_id):                
-        query = f"""SELECT {xaxis}, `{yaxis}` 
-                    FROM {table} 
-                    WHERE {target_col} = '{target_id}' 
-                    ORDER BY {xaxis} ASC"""               
-        return self.popup_scatter_plot(self.run_query(query),xaxis,yaxis,target_id)
-
-    def run_query(self, query):
-        print(query)
-        conn = sqlite3.Connection(self.database)
-        df = pd.read_sql(f"{query}", conn)
-        conn.close()
-        return df
-    
-    def run_clean_query(self, query):
-        print(query)
-        conn = sqlite3.Connection(self.database)        
-        df = pd.read_sql(f"{query}", conn)
-        df = df.replace('nan', np.nan)
-        df = df.dropna()
-        conn.close()
-        return df
-    
     def load_data(self, df):
+        ''' method used to populate data into the main data viewer / TreeView '''
         
         # clear data
         self.clear_data()
@@ -215,9 +154,11 @@ class myTool:
             self.tree_view.insert("","end", values=row)
         
     def clear_data(self):
+        ''' method used to clear data from the main data viewer / TreeView '''
         self.tree_view.delete(*self.tree_view.get_children())
 
     def popup_scatter_plot(self, df,x,y,title):
+        ''' creates a pop-up window displaying a scatter plot of a dataframe '''
         pop_up = Toplevel()
         pop_up.title('plot viewer')
         figure = plt.Figure(figsize=(10,5), dpi=100)
@@ -228,6 +169,7 @@ class myTool:
         ax.set_title(title)
 
     def popup_tree(self, df):        
+        ''' creates a pop-up window displaying the data contents of a dataframe '''
         
         # create popup window with tree view and data export functionality
         pop_up = Toplevel()
@@ -263,7 +205,90 @@ class myTool:
         popup_submenu.add_command(label="Export to Excel", command=lambda: new_excel(df))
         pop_up.config(menu=popup_menu)
 
+    def ISIN(self):
+        ''' returns the ISIN of a bond clicked in the main data viewer'''
+        return self.tree_view.item(self.item)['values'][0]
+
+
+    ''' ------------------------------ Data Methods  ----------------------------------'''
+    
+    def transpose(self, df):
+        df = df.transpose()
+        df = df.reset_index()
+        return df
+
+    def clean(self, df):
+        df = df.dropna()
+        df = df.reset_index()
+        return df
+    
+    def query_financials_by_isin(self, columns, isin, statement):
+        query = f"""SELECT {columns} 
+                     FROM Financials
+                     WHERE Company = (SELECT Issuer 
+                                      FROM Master 
+                                      WHERE ISIN='{isin}') 
+                     AND Statement='{statement}'"""
+                     
+        return self.run_query(query)
+
+    def query_item_by_isin(self, item, isin):
+        query = f"""SELECT DISTINCT strftime('%d-%m-%Y', PeriodEndDate) AS Date,
+                    {item} 
+                    FROM Financials
+                    WHERE Company = (SELECT Issuer 
+                                     FROM Master 
+                                     WHERE ISIN='{isin}')"""
+                     
+        return self.run_clean_query(query)
+
+    def merge_item_by_isin(self, item, item2, isin):
+        ''' Note: The raw research data is parsed in an unstructured manner and so does not have dates as a 
+            primary key which results in duplication of dates when multiple items are queried. 
+            To get around this, we merge the dataframes by date
+        '''
+        df1 = self.query_item_by_isin(item, isin)
+        df2 = self.query_item_by_isin(item2, isin)       
+        return df1.merge(df2, on='Date')
+
+    def recursive_merge(self, list_of_items, isin):
+        ''' recursively merges data through queries stored in a list '''
+        
+        df = self.query_item_by_isin(list_of_items.pop(), isin)
+        if len(list_of_items) > 0:
+            return df.merge(self.recursive_merge(list_of_items, isin), on='Date')
+        else:
+            return df     
+        
+    def plot_query(self, xaxis,yaxis,table,target_col, target_id):                
+        query = f"""SELECT {xaxis}, `{yaxis}` 
+                    FROM {table} 
+                    WHERE {target_col} = '{target_id}' 
+                    ORDER BY {xaxis} ASC"""               
+        return self.popup_scatter_plot(self.run_query(query),xaxis,yaxis,target_id)
+
+    def run_query(self, query):
+        ''' runs an SQLite query via Pandas and returns the dataframe '''
+        print(query)
+        conn = sqlite3.Connection(self.database)
+        df = pd.read_sql(f"{query}", conn)
+        conn.close()
+        return df
+    
+    def run_clean_query(self, query):
+        ''' runs an SQLite query via Pandas, replaces string nan with NaNs, drops NaN returns the dataframe '''
+        print(query)
+        conn = sqlite3.Connection(self.database)        
+        df = pd.read_sql(f"{query}", conn)
+        df = df.replace('nan', np.nan)
+        df = df.dropna()
+        conn.close()
+        return df
+    
     def rebuild_database(self):
+        ''' parses all the raw research data and feeds into an SQLite database that use used to drive all 
+            functionality in this tool. Note this completely deltes the database and then re-creates it.
+        '''
         # all the work here is done in the imported database_builder class
         from data_aggregator import database_builder
         database_builder()
@@ -271,8 +296,6 @@ class myTool:
         # refresh view when database is rebuilt
         self.load_data(self.run_query(QUERY["Main"]))
   
-    def ISIN(self):
-        return self.tree_view.item(self.item)['values'][0]
     
 def threadit(targ):
     tr = Thread(target=targ)
@@ -287,6 +310,7 @@ def new_excel(df):
     
 if __name__=='__main__':
     
+    # WORK IN PROGRESS BELOW
     QUERY = {"Main2":"SELECT DISTINCT ISIN, Issuer, Coupon, strftime('%d-%m-%Y', Maturity) AS Maturity FROM Master",
              "Main":"""SELECT DISTINCT Prices.ISIN, Master.Issuer, Master.Coupon, strftime('%d-%m-%Y', Master.Maturity) AS Maturity
                        FROM Master 
@@ -302,8 +326,13 @@ if __name__=='__main__':
     
     cash = "CAST(NetCashFlowfromOperatingActivities AS Decimal) AS NetCashFlowfromOperatingActivities"
     debt = "CAST(DebtLongTermTotal AS Decimal) AS DebtLongTermTotal"
-    assets = "CAST(TotalAssets AS Decimal) AS TotalAssets"
+    assets = "CAST(TotalAssets AS Decimal) AS TotalAssets"  
+    liabilities = "CAST(TotalLiabilities AS Decimal) AS TotalLiabilities"
+    current_liabilities = "CAST(TotalCurrentLiabilities AS Decimal) AS TotalCurrentLiabilities"
+    current_assets = "CAST(TotalCurrentAssets AS Decimal) AS TotalCurrentAssets"
+    revenue = "CAST(RevenuefromBusinessActivitiesTotal AS Decimal) AS RevenuefromBusinessActivitiesTotal"
     income = "CAST(IncomebeforeTaxes AS Decimal) AS PretaxIncome"
+
     
     # LOTS OF PROBLEMS- getting multiple dates from different cash flows. Division is often not working                              
                        
