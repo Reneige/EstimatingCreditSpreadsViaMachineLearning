@@ -90,11 +90,17 @@ class myTool:
         
         # add schema menu 
         self.dbmenu.add_cascade(label="Schema", menu=self.schema)
-        
-        # loop through database tables and build GUI elements and queries based on that
-        for table in self.get_list_of_database_tables():
-            self.schema.add_command(label=f"Check {table} Schema", command=lambda: self.popup_tree(self.run_query(f"PRAGMA table_info({table})")))
-                 
+        self.schema.add_command(label="Display Schema", command=lambda: self.popup_tree(self.run_query("SELECT * FROM sqlite_schema")))
+        self.schema.add_separator()
+        self.schema.add_command(label="Check Master Schema", command=lambda: self.popup_tree(self.run_query("PRAGMA table_info(Master)")))
+        self.schema.add_command(label="Check Prices Schema", command=lambda: self.popup_tree(self.run_query("PRAGMA table_info(Prices)")))
+        self.schema.add_command(label="Check Financials Schema", command=lambda: self.popup_tree(self.run_query("PRAGMA table_info(Financials)")))
+        self.schema.add_command(label="Check Nominal_Curve Schema", command=lambda: self.popup_tree(self.run_query("PRAGMA table_info(Nominal_Curve)")))
+        self.schema.add_command(label="Check Inflation_Curve Schema", command=lambda: self.popup_tree(self.run_query("PRAGMA table_info(Inflation_Curve)")))
+        self.schema.add_command(label="Check GDP Schema", command=lambda: self.popup_tree(self.run_query("PRAGMA table_info(GDP)")))
+        self.schema.add_command(label="Check VIX Schema", command=lambda: self.popup_tree(self.run_query("PRAGMA table_info(VIX)")))
+        self.schema.add_command(label="Check FTSE100 Schema", command=lambda: self.popup_tree(self.run_query("PRAGMA table_info(FTSE100)")))
+        self.schema.add_separator()
         self.dbmenu.add_command(label="Rebuild Database", command=lambda: threadit(self.rebuild_database))
     
         # Add menu to root window        
@@ -112,7 +118,9 @@ class myTool:
         self.popup_menu.add_separator()
         self.popup_menu.add_command(label="Browse Price Data", command=lambda: self.popup_tree(self.run_query(f"SELECT * FROM Prices WHERE ISIN = '{self.ISIN()}' ORDER BY Date ASC")))
         self.popup_menu.add_separator()
-        
+        self.popup_menu.add_command(label="TEST", command=lambda: self.popup_tree(self.run_query('SELECT Date, "1.5yr" FROM Nominal_Curve')))
+
+       
         # create cascading menu - financials
         self.fins_menu = Menu(self.popup_menu, tearoff=0)
         self.popup_menu.add_cascade(label="Financials", menu=self.fins_menu)
@@ -123,15 +131,15 @@ class myTool:
         self.fins_menu.add_command(label="Browse Balance-Sheet Data", command=lambda: self.popup_tree(self.query_financials_by_isin("*",self.ISIN(),"Balance-Sheet")))
         self.fins_menu.add_command(label="Browse Cash Flow Data", command=lambda: self.popup_tree(self.query_financials_by_isin("*",self.ISIN(),"Cash-Flow")))
         self.fins_menu.add_separator()
-        self.fins_menu.add_command(label="Total Assets", command=lambda: self.popup_tree(self.query_item_by_isin(assets, self.ISIN())))
-        self.fins_menu.add_command(label="Total Liabilities", command=lambda: self.popup_tree(self.query_item_by_isin(liabilities, self.ISIN())))
+        self.fins_menu.add_command(label="Total Assets", command=lambda: self.popup_tree(self.query_item_by_isin(assets, self.ISIN(),0)))
+        self.fins_menu.add_command(label="Total Liabilities", command=lambda: self.popup_tree(self.query_item_by_isin(liabilities, self.ISIN(),0)))
         self.fins_menu.add_separator()
-        self.fins_menu.add_command(label="Cash and Debt", command=lambda: self.popup_tree(self.merge_item_by_isin(cashflow, debt, self.ISIN())))
+        self.fins_menu.add_command(label="Cash and Debt", command=lambda: self.popup_tree(self.merge_financial_item_by_isin(cashflow, debt, self.ISIN())))
         self.fins_menu.add_separator()
-        self.fins_menu.add_command(label="Cash, Debt, Income, Asset", command=lambda: self.popup_tree(self.recursive_merge([cashflow, debt, assets, income], self.ISIN())))
-        self.fins_menu.add_command(label="Key Financials", command=lambda: self.popup_tree(self.recursive_merge([revenue, income, cashflow, assets, liabilities, debt, current_assets, current_liabilities], self.ISIN())))
-        self.fins_menu.add_command(label="Prices Merged", command=lambda: self.popup_tree(self.merge_prices(self.recursive_merge([revenue, income, cashflow, assets, liabilities, debt, current_assets, current_liabilities], self.ISIN()),self.ISIN())))
-        self.fins_menu.add_command(label="Static Bond Data Added", command=lambda: self.popup_tree(self.add_static_bond_data(self.recursive_merge([revenue, income, cashflow, assets, liabilities, debt, current_assets, current_liabilities], self.ISIN()),'SeniorityType',self.ISIN())))
+        self.fins_menu.add_command(label="Cash, Debt, Income, Asset", command=lambda: self.popup_tree(self.recursive_merge_financials_by_isin([cashflow, debt, assets, income], self.ISIN(),0)))
+        self.fins_menu.add_command(label="Key Financials", command=lambda: self.popup_tree(self.recursive_merge_financials_by_isin([revenue, income, cashflow, assets, liabilities, debt, current_assets, current_liabilities], self.ISIN(),0)))
+        self.fins_menu.add_command(label="Prices Merged", command=lambda: self.popup_tree(self.merge_prices(self.recursive_merge_financials_by_isin([revenue, income, cashflow, assets, liabilities, debt, current_assets, current_liabilities], self.ISIN(),0),self.ISIN())))
+        self.fins_menu.add_command(label="Static Bond Data Added", command=lambda: self.popup_tree(self.add_static_bond_data(self.recursive_merge_financials_by_isin([revenue, income, cashflow, assets, liabilities, debt, current_assets, current_liabilities], self.ISIN(),0),'SeniorityType',self.ISIN())))
 
         # bind right-click to the context menu method
         self.tree_view.bind("<Button-3>", self.context_menu)
@@ -236,13 +244,8 @@ class myTool:
     def clean(self, df):
         df = df.dropna()
         df = df.reset_index()
-        return df
+        return df        
 
-    def get_list_of_database_tables(self):
-        df = self.run_query("SELECT tbl_name AS 'Table' FROM sqlite_schema")
-        return df['Table'].tolist()
-        
-    
     def query_financials_by_isin(self, columns, isin, statement):
         query = f"""SELECT {columns} 
                      FROM Financials
@@ -253,8 +256,17 @@ class myTool:
                      
         return self.run_query(query)
 
-    def query_item_by_isin(self, item, isin):
-        query = f"""SELECT DISTINCT PeriodEndDate AS Date,
+    def query_item_by_isin(self, item, isin, month_shift):
+        ''' Here you can shift the dates forward using the months_shift parameter
+            This is useful for lagging data / adjusting for look-ahead bias.
+        '''
+        
+        # this requires ugly handling because just using '+3 month' can result in date falling on the
+        # first day of the following month if following month has fewer days. (weak implementation by 
+        # SQLite. So here I have set to first day of month, shifted by x months + 1, then gone back a day.
+        
+        month_shift += 1
+        query = f"""SELECT DISTINCT DATETIME(PeriodEndDate, 'start of month', '+{month_shift} month', '-1 day') AS Date,
                     {item} 
                     FROM Financials
                     WHERE Company = (SELECT Issuer 
@@ -263,21 +275,21 @@ class myTool:
                      
         return self.run_clean_query(query)
 
-    def merge_item_by_isin(self, item, item2, isin):
+    def merge_financial_item_by_isin(self, item, item2, isin):
         ''' Note: The raw research data is parsed in an unstructured manner and so does not have dates as a 
             primary key which results in duplication of dates when multiple items are queried. 
             To get around this, I have merged the dataframes by date
         '''
-        df1 = self.query_item_by_isin(item, isin)
-        df2 = self.query_item_by_isin(item2, isin)       
+        df1 = self.query_item_by_isin(item, isin,0)
+        df2 = self.query_item_by_isin(item2, isin,0)       
         return df1.merge(df2, on='Date')
 
-    def recursive_merge(self, list_of_items, isin):
+    def recursive_merge_financials_by_isin(self, list_of_items, isin, month_shift):
         ''' recursively merges data through queries stored in a list '''
         
-        df = self.query_item_by_isin(list_of_items.pop(), isin)
+        df = self.query_item_by_isin(list_of_items.pop(), isin, month_shift)
         if len(list_of_items) > 0:
-            return df.merge(self.recursive_merge(list_of_items, isin), on='Date')
+            return df.merge(self.recursive_merge_financials_by_isin(list_of_items, isin, month_shift), on='Date')
         else:
             return df     
 
@@ -286,6 +298,12 @@ class myTool:
         '''
         df1 = self.run_query(f"SELECT * FROM Prices WHERE ISIN = '{isin}' ORDER BY Date ASC")
         return df1.merge(df, on='Date', how='left').sort_values(by='Date',ascending=False)
+
+    def merge_econ_data_by_date(self, df, query):
+        ''' This queries economic data and merges it to a dataframe using date as a key
+        '''
+        df1 = self.run_query(query)
+        return df.merge(df1, on='Date', how='left').sort_values(by='Date',ascending=False)
 
     def add_static_bond_data(self,df,item,isin):
         ''' queries the Master bond list of static data by isin and inserts as a column into a dataframe'''        
@@ -332,20 +350,35 @@ class myTool:
         
         # refresh view when database is rebuilt
         self.load_data(self.run_query(QUERY["Main"]))
-  
+
     def execute(self):
-        ''' Produces main research data table'''
+        ''' Produces main research data table. Note :            
+            When building the research data set, financials are extracted first with their dates
+            pushed forward 3 months with month_shift parameter. Then the price data is JOINED on that 
+            future date. This ensures prices are 3 months after financial reporting dates. 
+        '''
         df = self.run_query("SELECT DISTINCT ISIN FROM Prices")
         isins = df['ISIN'].tolist()
         agg =[]
         for isin in isins:
-            data = self.recursive_merge([revenue, income, cashflow, assets, liabilities,
-                                         debt, current_assets, current_liabilities],isin)
+            data = self.recursive_merge_financials_by_isin([revenue, income, cashflow, assets, liabilities,
+                                         debt, current_assets, current_liabilities], isin, month_shift=3)
             data = self.merge_prices(data, isin)
             data = self.add_static_bond_data(data, 'SeniorityType', isin)
             agg.append(data)
-        return pd.concat(agg)
-            
+        data = pd.concat(agg)
+        
+        # Note - sqlite requires double quotes "" for columns that begin with number - this means I need single quotes for string to be python compatible
+        data = self.merge_econ_data_by_date(data, 'SELECT Date, "1yr" AS "1yr_nominal_gov_yield" FROM Nominal_Curve')
+        data = self.merge_econ_data_by_date(data, 'SELECT Date, "3yr" AS "3yr_nominal_gov_yield" FROM Nominal_Curve')      
+        data = self.merge_econ_data_by_date(data, 'SELECT Date, "5yr" AS "5yr_nominal_gov_yield" FROM Nominal_Curve')      
+        data = self.merge_econ_data_by_date(data, 'SELECT Date, "10yr" AS "5yr_nominal_gov_yield" FROM Nominal_Curve')      
+        data = self.merge_econ_data_by_date(data, 'SELECT Date, "5yr" AS "5yr_breakeven_inflation" FROM Inflation_Curve')      
+        data = self.merge_econ_data_by_date(data, 'SELECT "2M Lagged Date" AS Date, "Gross Value Added Growth" AS "GDP_Growth_estimate" FROM GDP')      
+        data = self.merge_econ_data_by_date(data, 'SELECT Date, "Daily Rolling 22 Day Sample StDev" AS FTSE_22_day_rolling_stdev, "Daily Rolling 22 Day Geometric Return" AS FTSE_22_day_rolling_return FROM FTSE100')
+        data = self.merge_econ_data_by_date(data, 'SELECT DATE AS Date, CLOSE AS "VIX_Close" FROM VIX')
+        return data
+         
     
 def threadit(targ):
     tr = Thread(target=targ)
@@ -391,3 +424,17 @@ if __name__=='__main__':
     root.lift()
     root.mainloop()
     
+qry="""
+SELECT DISTINCT DATE(PeriodEndDate, '+3 month') AS Date,
+                    CAST(RevenuefromBusinessActivitiesTotal AS Decimal) AS RevenuefromBusinessActivitiesTotal 
+                    FROM Financials
+                    WHERE Company = (SELECT Issuer 
+                                     FROM Master 
+                                     WHERE ISIN='XS1883966662')
+                    
+"""
+
+database = r".\database.db"
+conn = sqlite3.Connection(database)        
+dfd = pd.read_sql(qry, conn)
+conn.close()

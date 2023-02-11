@@ -24,7 +24,7 @@ class database_builder:
         self.inflation_curve = r'.\Economic Data\Curves\Spot Implied Inflation Curve.xlsx'
         self.nominal_curve = r'.\Economic Data\Curves\Spot Nominal Curve.xlsx'
         self.gdp = r'.\Economic Data\ONS UK GDP Estimate Monthly.xlsx'
-        self.vix = r'.\Economic Data\VIX index yahoo.csv'
+        self.vix = r'.\Economic Data\VIX_History_cboe.xlsx'
         self.ftse100 = r'.\Economic Data\Price History_20230208_FTSE100_refinitiv.xlsx'
         self.total_files = len(self.price_files) + len(self.financial_files) + len(self.bond_universe) + 5
         self.db = r'.\database.db'
@@ -153,7 +153,7 @@ class database_builder:
         self.progress_step()
         gdp = pd.read_excel(self.gdp)
         self.progress_step()
-        vix = pd.read_csv(self.vix)
+        vix = pd.read_excel(self.vix)
         self.progress_step()
         ftse100 = pd.read_excel(self.ftse100)
         self.progress_step()
