@@ -3,6 +3,10 @@
 Created on Sat Jan 28 13:40:56 2023
 
 @author: Rene Alby
+
+To rebuild the database from the raw data files downloaded in to the data folder. This tool has a GUI progress
+bar component as well.
+
 """
 
 import pandas as pd
@@ -17,7 +21,13 @@ class database_builder:
         self.price_files = glob2.glob('.\**\Price Data\*.xlsx')
         self.financial_files = glob2.glob('.\**\Financials\*.xlsx')
         self.bond_universe = glob2.glob('.\**\Master List of Bonds\*.xlsx')
-        self.total_files = len(self.price_files) + len(self.financial_files) + len(self.bond_universe)
+        self.inflation_curve = r'.\Economic Data\Curves\Spot Implied Inflation Curve.xlsx'
+        self.nominal_curve = r'.\Economic Data\Curves\Spot Nominal Curve.xlsx'
+        self.gdp = r'.\Economic Data\ONS UK GDP Estimate Monthly.xlsx'
+        self.vix = r'.\Economic Data\VIX index yahoo.csv'
+        self.ftse100 = r'.\Economic Data\Price History_20230208_FTSE100_refinitiv.xlsx'
+        self.total_files = len(self.price_files) + len(self.financial_files) + len(self.bond_universe) + 5
+        self.db = r'.\database.db'
         self.progress()
         self.run()
         
@@ -72,12 +82,17 @@ class database_builder:
         self.progress_step()       
         return uni
 
-    def build_database(self, pricedata, security_master, findata):
+    def build_database(self, pricedata, security_master, findata, nomcurve, inflcurve, gdp, vix, ftse100):
         # Build the database
-        conn = sqlite3.Connection(r'.\database.db')
+        conn = sqlite3.Connection(self.db)
         pricedata.to_sql('Prices',conn, if_exists='replace', index=False)   
         security_master.to_sql('Master',conn, if_exists='replace', index=False)   
-        findata.to_sql('Financials',conn, if_exists='replace', index=False)   
+        findata.to_sql('Financials',conn, if_exists='replace', index=False) 
+        nomcurve.to_sql('Nominal_Curve',conn, if_exists='replace', index=False)  
+        inflcurve.to_sql('Inflation_Curve',conn, if_exists='replace', index=False) 
+        gdp.to_sql('GDP',conn, if_exists='replace', index=False)
+        vix.to_sql('VIX',conn, if_exists='replace', index=False)
+        ftse100.to_sql('FTSE100',conn, if_exists='replace', index=False)
         conn.close()
 
     def progress(self):
@@ -99,9 +114,9 @@ class database_builder:
         return f"Current Progress: {self.pb['value']:.1f}%"
 
     def progress_step(self):
-        if self.pb['value'] < 100:
-            self.pb['value'] += (100 / self.total_files)
-            self.value_label['text'] = self.update_progress_label()
+        if (self.pb['value'] < 100):
+            self.pb['value'] += (100 / self.total_files) # Note : updated after condition
+            self.value_label['text'] = self.update_progress_label()       
         else:
             messagebox.showinfo(message='Database Build Complete')
             self.pb_popup.destroy()
@@ -131,6 +146,20 @@ class database_builder:
         security_master.columns = security_master.columns.str.replace(' ', '')
         security_master.columns = security_master.columns.str.replace('-', '')
         
+        # econ data (less complex since data is preformatted)
+        nomcurve = pd.read_excel(self.nominal_curve)
+        self.progress_step()
+        inflcurve = pd.read_excel(self.inflation_curve)
+        self.progress_step()
+        gdp = pd.read_excel(self.gdp)
+        self.progress_step()
+        vix = pd.read_csv(self.vix)
+        self.progress_step()
+        ftse100 = pd.read_excel(self.ftse100)
+        self.progress_step()
+        
         # build database
-        self.build_database(pricedata, security_master, findata)
+        self.build_database(pricedata, security_master, findata, nomcurve, inflcurve, gdp, vix, ftse100)
+        
+        # final step to push progress bar past 100% to trigger the 'complete' condition
         self.progress_step()

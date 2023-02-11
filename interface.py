@@ -75,20 +75,26 @@ class myTool:
         self.filemenu.add_command(label="Export Bond List", command=lambda: new_excel(self.run_query(QUERY["Main"])))
         
         self.datamenu.add_command(label="Browse Price Data", command=lambda: self.popup_tree(self.run_query('SELECT * FROM Prices')))
+        self.datamenu.add_command(label="Browse Nominal Curve Data", command=lambda: self.popup_tree(self.run_query('SELECT * FROM Nominal_Curve')))
+        self.datamenu.add_command(label="Browse Inflation Curve Data", command=lambda: self.popup_tree(self.run_query('SELECT * FROM Inflation_Curve')))
+        self.datamenu.add_command(label="Browse ONS GDP Estimate Data", command=lambda: self.popup_tree(self.run_query('SELECT * FROM GDP')))
+        self.datamenu.add_command(label="Browse VIX Data", command=lambda: self.popup_tree(self.run_query('SELECT * FROM VIX')))
+        self.datamenu.add_command(label="Browse FTSE100 Data", command=lambda: self.popup_tree(self.run_query('SELECT * FROM FTSE100')))
         self.datamenu.add_separator()
-        self.datamenu.add_command(label="Browse Financial Summary", command=lambda: self.popup_tree(self.run_query("SELECT * FROM Financials WHERE statement='Financial-Summary'"))) 
-        self.datamenu.add_command(label="Browse Income Statement", command=lambda: self.popup_tree(self.run_query("SELECT * FROM Financials WHERE statement='Income-Statement'")))
-        self.datamenu.add_command(label="Browse Balance Sheet", command=lambda: self.popup_tree(self.run_query("SELECT * FROM Financials WHERE statement='Balance-Sheet'")))
-        self.datamenu.add_command(label="Browse Cash Flow Statement", command=lambda: self.popup_tree(self.run_query("SELECT * FROM Financials WHERE statement='Cash-Flow'")))
+        self.datamenu.add_command(label="Browse Financial Summary Data", command=lambda: self.popup_tree(self.run_query("SELECT * FROM Financials WHERE statement='Financial-Summary'"))) 
+        self.datamenu.add_command(label="Browse Income Statement Data", command=lambda: self.popup_tree(self.run_query("SELECT * FROM Financials WHERE statement='Income-Statement'")))
+        self.datamenu.add_command(label="Browse Balance Sheet Data", command=lambda: self.popup_tree(self.run_query("SELECT * FROM Financials WHERE statement='Balance-Sheet'")))
+        self.datamenu.add_command(label="Browse Cash Flow Statement Data", command=lambda: self.popup_tree(self.run_query("SELECT * FROM Financials WHERE statement='Cash-Flow'")))
         self.datamenu.add_separator()
         self.datamenu.add_command(label="Browse Bond Master Data", command=lambda: self.popup_tree(self.run_query('SELECT * FROM Master ORDER BY Issuer')))
         
         # add schema menu 
         self.dbmenu.add_cascade(label="Schema", menu=self.schema)
-        self.schema.add_command(label="List all Database Tables", command=lambda: self.popup_tree(self.run_query("SELECT tbl_name AS 'Table Names:' FROM sqlite_schema")))
-        self.schema.add_command(label="Check Security Master Schema", command=lambda: self.popup_tree(self.run_query("PRAGMA table_info(Master)")))
-        self.schema.add_command(label="Check Prices Schema", command=lambda: self.popup_tree(self.run_query("PRAGMA table_info(Prices)")))
-        self.schema.add_command(label="Check Financials Schema", command=lambda: self.popup_tree(self.run_query("PRAGMA table_info(Financials)")))
+        
+        # loop through database tables and build GUI elements and queries based on that
+        for table in self.get_list_of_database_tables():
+            self.schema.add_command(label=f"Check {table} Schema", command=lambda: self.popup_tree(self.run_query(f"PRAGMA table_info({table})")))
+                 
         self.dbmenu.add_command(label="Rebuild Database", command=lambda: threadit(self.rebuild_database))
     
         # Add menu to root window        
@@ -175,15 +181,19 @@ class myTool:
         ax.set_title(title)
 
     def popup_tree(self, df):        
-        ''' creates a pop-up window displaying the data contents of a dataframe '''
+        ''' creates a pop-up window displaying the data contents of a dataframe with export to excel functionality '''
         
-        # create popup window with tree view and data export functionality
+        # create popup window 
         pop_up = Toplevel()
         pop_up.title('data viewer')
         pop_up.geometry("700x300")
         tree_view = ttk.Treeview(pop_up)
-        tree_view.place(width=690, height=290, x=0, y=0)  
-               
+        
+        #The below commands makes the Treeview data resize upon window resizing
+        pop_up.grid_rowconfigure(0, weight=1)
+        pop_up.grid_columnconfigure(0, weight=1)
+        tree_view.grid(column=0, row=0, sticky="nsew")
+        
         # initialise treeview columns to dastaframe columns
         tree_view["column"] = list(df.columns)
         tree_view["show"] = "headings"
@@ -201,8 +211,8 @@ class myTool:
         treescrolly = Scrollbar(pop_up, orient="vertical", command=tree_view.yview)
         treescrollx = Scrollbar(pop_up, orient="horizontal", command=tree_view.xview)
         tree_view.configure(xscrollcommand=treescrollx.set, yscrollcommand=treescrolly.set)
-        treescrollx.pack(side="bottom", fill="x")
-        treescrolly.pack(side="right", fill="y")   
+        treescrollx.grid(column=0, row=1, sticky="nsew")
+        treescrolly.grid(column=1, row=0, sticky="nsew")
 
         # Create Export Menu
         popup_menu = Menu(pop_up, tearoff=0)
@@ -227,6 +237,11 @@ class myTool:
         df = df.dropna()
         df = df.reset_index()
         return df
+
+    def get_list_of_database_tables(self):
+        df = self.run_query("SELECT tbl_name AS 'Table' FROM sqlite_schema")
+        return df['Table'].tolist()
+        
     
     def query_financials_by_isin(self, columns, isin, statement):
         query = f"""SELECT {columns} 

@@ -1,0 +1,23 @@
+Bank of England UK yield curve data
+
+For documentation and descriptions, see the statistics/yield curve area of the
+Bank of England website at www.bankofengland.co.uk.
+Every effort has been made to ensure this information is correct but we can not 
+in any way guarantee its accuracy and you use it entirely at your own risk.
+
+Users should note that on 16 December 2014 the yield curve data on this
+spreadsheet were revised back to the beginning of 2007.  These 
+revisions are relatively modest and do not change recent trends in the data. 
+
+Users should note that on 21 December 2004 the yield curve data on this
+spreadsheet were revised back to the beginning of November 1998, and on
+30 September 2014 the yield curve data on this spreadsheet were revised
+to the beginning of March 2012. These revisions are relatively modest and
+do not change recent trends in the data. 
+
+Users should note that on 2 October 2017 the yield curve data on this
+spreadsheet were revised to the beginning of January 2015.  
+These revisions  do not change recent medium term trends in the data.
+Please note that these revisions are of the same type as those made on 4th July 2017.
+
+Sources: Bloomberg Finance L.P., and Bank calculations
