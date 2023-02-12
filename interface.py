@@ -4,11 +4,12 @@ Created on Sun Jan 29 20:55:44 2023
 
 @author: Rene Alby
 
-The purpose of this tool is to aggregate data for research in machine learning methods in corporate
-credit markets. The tool is designed so that research data can be dropped into the /data subfolders and be
-immediately integrated into the dataset by clicking the 'Rebuild Database' menu from the Database drop-down
-menu. Then the data can be browsed to ensure it is being captured correctly in the data model. Finally, 
-clicking the 'Generate Research Data Table' button will run all the required queries to build the data set
+The purpose of this tool is to aggregate data for research in machine learning applications in corporate 
+bond markets. The tool is designed so that research data can be dropped into the './data/GBP Bonds' subfolder 
+and be immediately integrated into the dataset by clicking the 'Rebuild Database' menu from the Database 
+drop-down menu. Then the data can be browsed to ensure it is being captured correctly in the data model. 
+Finally, clicking the 'Generate Research Data Table' button will run all the required queries to build the 
+data set
 
 """
 
@@ -406,14 +407,14 @@ class ResearchQueryTool:
         data = pd.concat(agg)
         
         # Note - sqlite requires double quotes "" for columns that begin with number - this means I need single quotes for string to be python compatible
-        data = self.merge_econ_data_by_date(data, 'SELECT Date, "1yr" AS "1yr_nominal_gov_yield" FROM Nominal_Curve')
-        data = self.merge_econ_data_by_date(data, 'SELECT Date, "3yr" AS "3yr_nominal_gov_yield" FROM Nominal_Curve')      
-        data = self.merge_econ_data_by_date(data, 'SELECT Date, "5yr" AS "5yr_nominal_gov_yield" FROM Nominal_Curve')      
-        data = self.merge_econ_data_by_date(data, 'SELECT Date, "10yr" AS "5yr_nominal_gov_yield" FROM Nominal_Curve')      
-        data = self.merge_econ_data_by_date(data, 'SELECT Date, "5yr" AS "5yr_breakeven_inflation" FROM Inflation_Curve')      
-        data = self.merge_econ_data_by_date(data, 'SELECT "2M Lagged Date" AS Date, "Gross Value Added Growth" AS "GDP_Growth_estimate" FROM GDP')      
-        data = self.merge_econ_data_by_date(data, 'SELECT Date, "Daily Rolling 22 Day Sample StDev" AS FTSE_22_day_rolling_stdev, "Daily Rolling 22 Day Geometric Return" AS FTSE_22_day_rolling_return FROM FTSE100')
-        data = self.merge_econ_data_by_date(data, 'SELECT DATE AS Date, CLOSE AS "VIX_Close" FROM VIX')
+        data = self.merge_econ_data_by_date(data, sql.nominal_yield_1yr)
+        data = self.merge_econ_data_by_date(data, sql.nominal_yield_3yr)      
+        data = self.merge_econ_data_by_date(data, sql.nominal_yield_5yr)      
+        data = self.merge_econ_data_by_date(data, sql.nominal_yield_10yr)      
+        data = self.merge_econ_data_by_date(data, sql.be_inflation_5yr)      
+        data = self.merge_econ_data_by_date(data, sql.gdp_gr_estimate)      
+        data = self.merge_econ_data_by_date(data, sql.ftse_risk_return)
+        data = self.merge_econ_data_by_date(data, sql.vix_usd)
         return data
          
     
@@ -429,12 +430,14 @@ def new_excel(df):
 
 class sql:
     ''' A class for storing useful SQL queries'''
-
-    main2 = "SELECT DISTINCT ISIN, Issuer, Coupon, Maturity FROM Master"
+    
+    # mainview generates the list of bonds to view in the tool
     mainview = """SELECT DISTINCT Prices.ISIN, Master.Issuer, Master.Coupon, strftime('%d-%m-%Y', Master.Maturity) AS Maturity
                        FROM Master 
                        INNER JOIN Prices
-                       ON Master.'PreferredRIC' = Prices.ID"""    
+                       ON Master.'PreferredRIC' = Prices.ID"""
+    
+    # The below extract financial statement items and cast them to float/decimal
     cashflow = "CAST(NetCashFlowfromOperatingActivities AS Decimal) AS NetCashFlowfromOperatingActivities"
     debt = "CAST(DebtLongTermTotal AS Decimal) AS DebtLongTermTotal"
     assets = "CAST(TotalAssets AS Decimal) AS TotalAssets"  
@@ -442,7 +445,7 @@ class sql:
     current_liabilities = "CAST(TotalCurrentLiabilities AS Decimal) AS TotalCurrentLiabilities"
     current_assets = "CAST(TotalCurrentAssets AS Decimal) AS TotalCurrentAssets"
     revenue = "CAST(RevenuefromBusinessActivitiesTotal AS Decimal) AS RevenuefromBusinessActivitiesTotal"
-    income = "CAST(IncomebeforeTaxes AS Decimal) AS PretaxIncome"    
+    income = "CAST(IncomebeforeTaxes AS Decimal) AS PretaxIncome"
     
     # The ResearchQueryTool.RecursiveMergeByIsin function takes a list of the above financial queries and pops them until the recursive 
     # function terminates. Therefore, I need to define a new list each time it is run. Using the function below solves this.
@@ -450,6 +453,20 @@ class sql:
     
     def key_fins_queries():
         return [sql.revenue, sql.income, sql.cashflow, sql.assets, sql.liabilities, sql.debt, sql.current_assets, sql.current_liabilities]
+
+    # All the below are economic data items: yields, inflation, gdp, ftse stdev/returns and VIX returns in usd.
+    # note ftse data is multiplied by 100 to bring it in line with yields notation.
+    
+    nominal_yield_1yr = 'SELECT Date, "1yr" AS "1yr_nominal_gov_yield" FROM Nominal_Curve'
+    nominal_yield_3yr = 'SELECT Date, "3yr" AS "3yr_nominal_gov_yield" FROM Nominal_Curve'      
+    nominal_yield_5yr = 'SELECT Date, "5yr" AS "5yr_nominal_gov_yield" FROM Nominal_Curve'      
+    nominal_yield_10yr = 'SELECT Date, "10yr" AS "10yr_nominal_gov_yield" FROM Nominal_Curve'      
+    be_inflation_5yr = 'SELECT Date, "5yr" AS "5yr_breakeven_inflation" FROM Inflation_Curve'      
+    gdp_gr_estimate = 'SELECT "2M Lagged Date" AS Date, "Gross Value Added Growth" AS "GDP_Growth_estimate" FROM GDP'
+    ftse_risk_return = 'SELECT Date, "Daily Rolling 22 Day Sample StDev" * 100 AS FTSE_22_day_rolling_stdev,\
+                        "Daily Rolling 22 Day Geometric Return" * 100 AS FTSE_22_day_rolling_return FROM FTSE100'
+    vix_usd = 'SELECT DATE AS Date, CLOSE AS "VIX_Close" FROM VIX'
+
     
 if __name__=='__main__':
     root = Tk()
