@@ -3,6 +3,13 @@
 Created on Sun Jan 29 20:55:44 2023
 
 @author: Rene Alby
+
+The purpose of this tool is to aggregate data for research in machine learning methods in corporate
+credit markets. The tool is designed so that research data can be dropped into the /data subfolders and be
+immediately integrated into the dataset by clicking the 'Rebuild Database' menu from the Database drop-down
+menu. Then the data can be browsed to ensure it is being captured correctly in the data model. Finally, 
+clicking the 'Generate Research Data Table' button will run all the required queries to build the data set
+
 """
 
 from tkinter import Tk, ttk, LabelFrame, Button, Scrollbar, Toplevel, Menu
@@ -14,7 +21,7 @@ from threading import Thread
 import xlwings as xw
 import numpy as np
 
-class myTool:
+class ResearchQueryTool:
     def __init__(self, root):
         self.root = root
         self.database = r".\database.db"
@@ -22,7 +29,7 @@ class myTool:
         self.generate_panel()
         self.generate_menu()
         self.generate_drop_down_menu()
-        self.load_data(self.run_query(QUERY["Main"]))
+        self.load_data(self.run_query(sql.mainview))
         
     ''' ------------------------------ GUI Methods  ----------------------------------'''
     
@@ -49,8 +56,8 @@ class myTool:
         self.label_file = LabelFrame(root, text="Control Panel")
         self.label_file.place(height=250, width=550, y=250)
 
-        self.button3 = Button(self.label_file, text="Generate Research data Table (30 sec)", 
-                              command=lambda: new_excel(self.execute()))
+        self.button3 = Button(self.label_file, text="Generate Research Data Table (30 sec)", 
+                              command=lambda: new_excel(self.build_research_dataset()))
         
         self.button3.grid(row=0, column=4)
 
@@ -72,19 +79,19 @@ class myTool:
         self.topmenu.add_cascade(label="Database", menu=self.dbmenu)
         
         # Add menu commands
-        self.filemenu.add_command(label="Export Bond List", command=lambda: new_excel(self.run_query(QUERY["Main"])))
+        self.filemenu.add_command(label="Export Bond List", command=lambda: new_excel(self.run_query(sql.mainview)))
         
-        self.datamenu.add_command(label="Browse Price Data", command=lambda: self.popup_tree(self.run_query('SELECT * FROM Prices')))
-        self.datamenu.add_command(label="Browse Nominal Curve Data", command=lambda: self.popup_tree(self.run_query('SELECT * FROM Nominal_Curve')))
-        self.datamenu.add_command(label="Browse Inflation Curve Data", command=lambda: self.popup_tree(self.run_query('SELECT * FROM Inflation_Curve')))
-        self.datamenu.add_command(label="Browse ONS GDP Estimate Data", command=lambda: self.popup_tree(self.run_query('SELECT * FROM GDP')))
-        self.datamenu.add_command(label="Browse VIX Data", command=lambda: self.popup_tree(self.run_query('SELECT * FROM VIX')))
-        self.datamenu.add_command(label="Browse FTSE100 Data", command=lambda: self.popup_tree(self.run_query('SELECT * FROM FTSE100')))
+        self.datamenu.add_command(label="Browse Price Data", command=lambda: self.display_table_data('Prices'))
+        self.datamenu.add_command(label="Browse Nominal Curve Data", command=lambda: self.display_table_data('Nominal_Curve'))
+        self.datamenu.add_command(label="Browse Inflation Curve Data", command=lambda: self.display_table_data('Inflation_Curve'))
+        self.datamenu.add_command(label="Browse ONS GDP Estimate Data", command=lambda: self.display_table_data('GDP'))
+        self.datamenu.add_command(label="Browse VIX Data", command=lambda: self.display_table_data('VIX'))
+        self.datamenu.add_command(label="Browse FTSE100 Data", command=lambda: self.display_table_data('FTSE100'))
         self.datamenu.add_separator()
-        self.datamenu.add_command(label="Browse Financial Summary Data", command=lambda: self.popup_tree(self.run_query("SELECT * FROM Financials WHERE statement='Financial-Summary'"))) 
-        self.datamenu.add_command(label="Browse Income Statement Data", command=lambda: self.popup_tree(self.run_query("SELECT * FROM Financials WHERE statement='Income-Statement'")))
-        self.datamenu.add_command(label="Browse Balance Sheet Data", command=lambda: self.popup_tree(self.run_query("SELECT * FROM Financials WHERE statement='Balance-Sheet'")))
-        self.datamenu.add_command(label="Browse Cash Flow Statement Data", command=lambda: self.popup_tree(self.run_query("SELECT * FROM Financials WHERE statement='Cash-Flow'")))
+        self.datamenu.add_command(label="Browse Financial Summary Data", command=lambda: self.display_table_data_subset('Financials','statement',"'Financial-Summary'"))
+        self.datamenu.add_command(label="Browse Income Statement Data", command=lambda: self.display_table_data_subset('Financials','statement',"'Income-Statement'"))
+        self.datamenu.add_command(label="Browse Balance Sheet Data", command=lambda: self.display_table_data_subset('Financials','statement',"'Balance-Sheet'"))
+        self.datamenu.add_command(label="Browse Cash Flow Statement Data", command=lambda: self.display_table_data_subset('Financials','statement',"'Cash-Flow'"))
         self.datamenu.add_separator()
         self.datamenu.add_command(label="Browse Bond Master Data", command=lambda: self.popup_tree(self.run_query('SELECT * FROM Master ORDER BY Issuer')))
         
@@ -92,14 +99,14 @@ class myTool:
         self.dbmenu.add_cascade(label="Schema", menu=self.schema)
         self.schema.add_command(label="Display Schema", command=lambda: self.popup_tree(self.run_query("SELECT * FROM sqlite_schema")))
         self.schema.add_separator()
-        self.schema.add_command(label="Check Master Schema", command=lambda: self.popup_tree(self.run_query("PRAGMA table_info(Master)")))
-        self.schema.add_command(label="Check Prices Schema", command=lambda: self.popup_tree(self.run_query("PRAGMA table_info(Prices)")))
-        self.schema.add_command(label="Check Financials Schema", command=lambda: self.popup_tree(self.run_query("PRAGMA table_info(Financials)")))
-        self.schema.add_command(label="Check Nominal_Curve Schema", command=lambda: self.popup_tree(self.run_query("PRAGMA table_info(Nominal_Curve)")))
-        self.schema.add_command(label="Check Inflation_Curve Schema", command=lambda: self.popup_tree(self.run_query("PRAGMA table_info(Inflation_Curve)")))
-        self.schema.add_command(label="Check GDP Schema", command=lambda: self.popup_tree(self.run_query("PRAGMA table_info(GDP)")))
-        self.schema.add_command(label="Check VIX Schema", command=lambda: self.popup_tree(self.run_query("PRAGMA table_info(VIX)")))
-        self.schema.add_command(label="Check FTSE100 Schema", command=lambda: self.popup_tree(self.run_query("PRAGMA table_info(FTSE100)")))
+        self.schema.add_command(label="Check Master Schema", command=lambda: self.inspect_table('Master'))
+        self.schema.add_command(label="Check Prices Schema", command=lambda: self.inspect_table('Prices'))
+        self.schema.add_command(label="Check Financials Schema", command=lambda: self.inspect_table('Financials'))
+        self.schema.add_command(label="Check Nominal_Curve Schema", command=lambda: self.inspect_table('Nominal_Curve'))
+        self.schema.add_command(label="Check Inflation_Curve Schema", command=lambda: self.inspect_table('Inflation_Curve'))
+        self.schema.add_command(label="Check GDP Schema", command=lambda: self.inspect_table('GDP'))
+        self.schema.add_command(label="Check VIX Schema", command=lambda: self.inspect_table('VIX'))
+        self.schema.add_command(label="Check FTSE100 Schema", command=lambda: self.inspect_table('FTSE100'))
         self.schema.add_separator()
         self.dbmenu.add_command(label="Rebuild Database", command=lambda: threadit(self.rebuild_database))
     
@@ -125,21 +132,24 @@ class myTool:
         self.fins_menu = Menu(self.popup_menu, tearoff=0)
         self.popup_menu.add_cascade(label="Financials", menu=self.fins_menu)
         
+        # A note on the below - these are mostly for testing whether the queries I need to build my research
+        # Data set are working. They are not designed for readability. Sorry! 
+        
         # add financials to cascade
         self.fins_menu.add_command(label="Browse Financial Summary Data", command=lambda: self.popup_tree(self.query_financials_by_isin("*",self.ISIN(),"Financial-Summary")))
         self.fins_menu.add_command(label="Browse Income Statement Data", command=lambda: self.popup_tree(self.query_financials_by_isin("*",self.ISIN(),"Income-Statement")))
         self.fins_menu.add_command(label="Browse Balance-Sheet Data", command=lambda: self.popup_tree(self.query_financials_by_isin("*",self.ISIN(),"Balance-Sheet")))
         self.fins_menu.add_command(label="Browse Cash Flow Data", command=lambda: self.popup_tree(self.query_financials_by_isin("*",self.ISIN(),"Cash-Flow")))
         self.fins_menu.add_separator()
-        self.fins_menu.add_command(label="Total Assets", command=lambda: self.popup_tree(self.query_item_by_isin(assets, self.ISIN(),0)))
-        self.fins_menu.add_command(label="Total Liabilities", command=lambda: self.popup_tree(self.query_item_by_isin(liabilities, self.ISIN(),0)))
+        self.fins_menu.add_command(label="Total Assets", command=lambda: self.popup_tree(self.query_item_by_isin(sql.assets, self.ISIN(),0)))
+        self.fins_menu.add_command(label="Total Liabilities", command=lambda: self.popup_tree(self.query_item_by_isin(sql.liabilities, self.ISIN(),0)))
         self.fins_menu.add_separator()
-        self.fins_menu.add_command(label="Cash and Debt", command=lambda: self.popup_tree(self.merge_financial_item_by_isin(cashflow, debt, self.ISIN())))
+        self.fins_menu.add_command(label="Cash and Debt", command=lambda: self.popup_tree(self.merge_financial_item_by_isin(sql.cashflow, sql.debt, self.ISIN())))
         self.fins_menu.add_separator()
-        self.fins_menu.add_command(label="Cash, Debt, Income, Asset", command=lambda: self.popup_tree(self.recursive_merge_financials_by_isin([cashflow, debt, assets, income], self.ISIN(),0)))
-        self.fins_menu.add_command(label="Key Financials", command=lambda: self.popup_tree(self.recursive_merge_financials_by_isin([revenue, income, cashflow, assets, liabilities, debt, current_assets, current_liabilities], self.ISIN(),0)))
-        self.fins_menu.add_command(label="Prices Merged", command=lambda: self.popup_tree(self.merge_prices(self.recursive_merge_financials_by_isin([revenue, income, cashflow, assets, liabilities, debt, current_assets, current_liabilities], self.ISIN(),0),self.ISIN())))
-        self.fins_menu.add_command(label="Static Bond Data Added", command=lambda: self.popup_tree(self.add_static_bond_data(self.recursive_merge_financials_by_isin([revenue, income, cashflow, assets, liabilities, debt, current_assets, current_liabilities], self.ISIN(),0),'SeniorityType',self.ISIN())))
+        self.fins_menu.add_command(label="Cash, Debt, Income, Asset", command=lambda: self.popup_tree(self.recursive_merge_financials_by_isin([sql.cashflow, sql.debt, sql.assets, sql.income], self.ISIN(),0)))
+        self.fins_menu.add_command(label="Key Financials", command=lambda: self.popup_tree(self.recursive_merge_financials_by_isin(sql.key_fins_queries(), self.ISIN(),0)))
+        self.fins_menu.add_command(label="Prices Merged", command=lambda: self.popup_tree(self.merge_prices(self.recursive_merge_financials_by_isin(sql.key_fins_queries(), self.ISIN(),0),self.ISIN())))
+        self.fins_menu.add_command(label="Static Bond Data Added", command=lambda: self.popup_tree(self.add_static_bond_data(self.recursive_merge_financials_by_isin(sql.key_fins_queries(), self.ISIN(),0),'SeniorityType',self.ISIN())))
 
         # bind right-click to the context menu method
         self.tree_view.bind("<Button-3>", self.context_menu)
@@ -237,16 +247,21 @@ class myTool:
     ''' ------------------------------ Data Methods  ----------------------------------'''
     
     def transpose(self, df):
+        ''' returns a transposed dataframe with reset index'''
         df = df.transpose()
         df = df.reset_index()
         return df
 
     def clean(self, df):
+        ''' drops NaNs from dataframe and resets the index'''
         df = df.dropna()
         df = df.reset_index()
         return df        
 
     def query_financials_by_isin(self, columns, isin, statement):
+        ''' Queries financial statement data by ISIN code by matching the ISIN to the Issuer Name via a 
+            Sub Query on the 'Master' table, i.e. the security master or bond-lookup table '''
+        
         query = f"""SELECT {columns} 
                      FROM Financials
                      WHERE Company = (SELECT Issuer 
@@ -349,9 +364,31 @@ class myTool:
         database_builder()
         
         # refresh view when database is rebuilt
-        self.load_data(self.run_query(QUERY["Main"]))
+        self.load_data(self.run_query(sql.mainview))
 
-    def execute(self):
+    def inspect_table(self, db_table):
+        ''' returns df table describing the columns and data types of a database table and 
+            displays the information in a pop-up window containing a TreeView             '''
+        df = self.run_query(f"PRAGMA table_info({db_table})")
+        return self.popup_tree(df)
+
+    def display_table_data(self, db_table):
+        ''' queries an entire database table and displays the data in a pop-up window containing a TreeView '''
+        df = self.run_query(f"SELECT * FROM {db_table}")
+        return self.popup_tree(df)
+
+    def display_table_data_subset(self, db_table, column, subset):
+        ''' queries an entire database table and displays the data in a pop-up window containing a TreeView '''
+        df = self.run_query(f"SELECT * FROM {db_table} WHERE {column} = {subset}")
+        return self.popup_tree(df)
+
+    def display_fin_table_by_isin(self, db_table, column, subset):
+        ''' queries an entire database table and displays the data in a pop-up window containing a TreeView '''
+        df = self.run_query(f"SELECT * FROM {db_table} WHERE {column} = {subset}")
+        return self.popup_tree(df)
+
+
+    def build_research_dataset(self):
         ''' Produces main research data table. Note :            
             When building the research data set, financials are extracted first with their dates
             pushed forward 3 months with month_shift parameter. Then the price data is JOINED on that 
@@ -361,8 +398,8 @@ class myTool:
         isins = df['ISIN'].tolist()
         agg =[]
         for isin in isins:
-            data = self.recursive_merge_financials_by_isin([revenue, income, cashflow, assets, liabilities,
-                                         debt, current_assets, current_liabilities], isin, month_shift=3)
+            data = self.recursive_merge_financials_by_isin([sql.revenue, sql.income, sql.cashflow, sql.assets, sql.liabilities,
+                                         sql.debt, sql.current_assets, sql.current_liabilities], isin, month_shift=3)
             data = self.merge_prices(data, isin)
             data = self.add_static_bond_data(data, 'SeniorityType', isin)
             agg.append(data)
@@ -390,19 +427,14 @@ def new_excel(df):
     sht=wb.sheets[0]
     sht.range('A1').options(index=False, header=True).value=df
 
-    
-if __name__=='__main__':
-    
-    # WORK IN PROGRESS BELOW
-    QUERY = {"Main2":"SELECT DISTINCT ISIN, Issuer, Coupon, Maturity FROM Master",
-             "Main":"""SELECT DISTINCT Prices.ISIN, Master.Issuer, Master.Coupon, strftime('%d-%m-%Y', Master.Maturity) AS Maturity
+class sql:
+    ''' A class for storing useful SQL queries'''
+
+    main2 = "SELECT DISTINCT ISIN, Issuer, Coupon, Maturity FROM Master"
+    mainview = """SELECT DISTINCT Prices.ISIN, Master.Issuer, Master.Coupon, strftime('%d-%m-%Y', Master.Maturity) AS Maturity
                        FROM Master 
                        INNER JOIN Prices
-                       ON Master.'PreferredRIC' = Prices.ID"""}
-
-   
-
-    
+                       ON Master.'PreferredRIC' = Prices.ID"""    
     cashflow = "CAST(NetCashFlowfromOperatingActivities AS Decimal) AS NetCashFlowfromOperatingActivities"
     debt = "CAST(DebtLongTermTotal AS Decimal) AS DebtLongTermTotal"
     assets = "CAST(TotalAssets AS Decimal) AS TotalAssets"  
@@ -410,31 +442,20 @@ if __name__=='__main__':
     current_liabilities = "CAST(TotalCurrentLiabilities AS Decimal) AS TotalCurrentLiabilities"
     current_assets = "CAST(TotalCurrentAssets AS Decimal) AS TotalCurrentAssets"
     revenue = "CAST(RevenuefromBusinessActivitiesTotal AS Decimal) AS RevenuefromBusinessActivitiesTotal"
-    income = "CAST(IncomebeforeTaxes AS Decimal) AS PretaxIncome"
-
-
+    income = "CAST(IncomebeforeTaxes AS Decimal) AS PretaxIncome"    
     
-    # TotalLiabilities is a dupe column and the blank is being retained. Same may be happening elsewhere with total assets                          
-                       
-
+    # The ResearchQueryTool.RecursiveMergeByIsin function takes a list of the above financial queries and pops them until the recursive 
+    # function terminates. Therefore, I need to define a new list each time it is run. Using the function below solves this.
+    # A single implementation of this list would only function once, because after the recursive function pops all elements, the list would be empty.
+    
+    def key_fins_queries():
+        return [sql.revenue, sql.income, sql.cashflow, sql.assets, sql.liabilities, sql.debt, sql.current_assets, sql.current_liabilities]
+    
+if __name__=='__main__':
     root = Tk()
     root.title("Research Data Tool")
     root.geometry("550x550")
-    application = myTool(root)
+    application = ResearchQueryTool(root)
     root.lift()
     root.mainloop()
     
-qry="""
-SELECT DISTINCT DATE(PeriodEndDate, '+3 month') AS Date,
-                    CAST(RevenuefromBusinessActivitiesTotal AS Decimal) AS RevenuefromBusinessActivitiesTotal 
-                    FROM Financials
-                    WHERE Company = (SELECT Issuer 
-                                     FROM Master 
-                                     WHERE ISIN='XS1883966662')
-                    
-"""
-
-database = r".\database.db"
-conn = sqlite3.Connection(database)        
-dfd = pd.read_sql(qry, conn)
-conn.close()
