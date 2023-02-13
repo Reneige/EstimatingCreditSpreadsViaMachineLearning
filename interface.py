@@ -402,7 +402,15 @@ class ResearchQueryTool:
             data = self.recursive_merge_financials_by_isin([sql.revenue, sql.income, sql.cashflow, sql.assets, sql.liabilities,
                                          sql.debt, sql.current_assets, sql.current_liabilities], isin, month_shift=3)
             data = self.merge_prices(data, isin)
+            
+            # confusingly, the below forward fills the financial data, so, for example, the september 
+            # 'total assets' also becomes the october and november, until there is a new data point.
+            # it uses 'bfill' since it is not looking at the datetime info, unlike the df.resample() method)
+            data = data.fillna(method='bfill')
+            
             data = self.add_static_bond_data(data, 'SeniorityType', isin)
+            data = self.add_static_bond_data(data, 'Coupon', isin)
+            data = self.add_static_bond_data(data, 'CouponFrequency', isin)
             agg.append(data)
         data = pd.concat(agg)
         
@@ -454,20 +462,19 @@ class sql:
     def key_fins_queries():
         return [sql.revenue, sql.income, sql.cashflow, sql.assets, sql.liabilities, sql.debt, sql.current_assets, sql.current_liabilities]
 
-    # All the below are economic data items: yields, inflation, gdp, ftse stdev/returns and VIX returns in usd.
-    # note ftse data is multiplied by 100 to bring it in line with yields notation.
-    
+    # All the below are economic data items: yields, inflation, gdp, ftse stdev/returns and VIX returns in usd.    
     nominal_yield_1yr = 'SELECT Date, "1yr" AS "1yr_nominal_gov_yield" FROM Nominal_Curve'
     nominal_yield_3yr = 'SELECT Date, "3yr" AS "3yr_nominal_gov_yield" FROM Nominal_Curve'      
     nominal_yield_5yr = 'SELECT Date, "5yr" AS "5yr_nominal_gov_yield" FROM Nominal_Curve'      
     nominal_yield_10yr = 'SELECT Date, "10yr" AS "10yr_nominal_gov_yield" FROM Nominal_Curve'      
     be_inflation_5yr = 'SELECT Date, "5yr" AS "5yr_breakeven_inflation" FROM Inflation_Curve'      
     gdp_gr_estimate = 'SELECT "2M Lagged Date" AS Date, "Gross Value Added Growth" AS "GDP_Growth_estimate" FROM GDP'
-    ftse_risk_return = 'SELECT Date, "Daily Rolling 22 Day Sample StDev" * 100 AS FTSE_22_day_rolling_stdev,\
-                        "Daily Rolling 22 Day Geometric Return" * 100 AS FTSE_22_day_rolling_return FROM FTSE100'
-    vix_usd = 'SELECT DATE AS Date, CLOSE AS "VIX_Close" FROM VIX'
+    ftse_risk_return = 'SELECT Date, "Daily Rolling 22 Day Sample StDev" AS FTSE_22_day_rolling_stdev,\
+                        "Daily Rolling 22 Day Geometric Return" AS FTSE_22_day_rolling_return FROM FTSE100'
+    vix_usd = 'SELECT Date, Close AS "VIX_Close" FROM VIX'
 
-    
+   
+''' The below instantiates the main GUI and triggers the main loop ''' 
 if __name__=='__main__':
     root = Tk()
     root.title("Research Data Tool")
