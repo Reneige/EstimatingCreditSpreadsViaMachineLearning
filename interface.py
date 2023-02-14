@@ -120,7 +120,7 @@ class ResearchQueryTool:
         self.popup_menu = Menu(self.tree_view, tearoff=0)
         self.popup_menu.add_command(label="Chart Prices", command=lambda: self.plot_query("Date","Bid","Prices","ISIN",self.ISIN()))
         self.popup_menu.add_command(label="Chart Yield", command=lambda: self.plot_query("Date","BidYld","Prices","ISIN",self.ISIN()))
-        self.popup_menu.add_command(label="Chart Z-Spread", command=lambda: self.plot_query("Date","Z Spread","Prices","ISIN",self.ISIN()))
+        self.popup_menu.add_command(label="Chart Z-Spread", command=lambda: self.plot_query("Date","ZSpread","Prices","ISIN",self.ISIN()))
         self.popup_menu.add_separator()
         self.popup_menu.add_command(label="View Bond Info", command=lambda: self.popup_tree(self.transpose(self.run_query(f"SELECT * FROM Master WHERE ISIN = '{self.ISIN()}'"))))
         self.popup_menu.add_separator()
@@ -443,7 +443,8 @@ class sql:
     mainview = """SELECT DISTINCT Prices.ISIN, Master.Issuer, Master.Coupon, strftime('%d-%m-%Y', Master.Maturity) AS Maturity
                        FROM Master 
                        INNER JOIN Prices
-                       ON Master.'PreferredRIC' = Prices.ID"""
+                       ON Master.ISIN = Prices.ISIN
+                       ORDER BY Master.Issuer"""
     
     # The below extract financial statement items and cast them to float/decimal
     cashflow = "CAST(NetCashFlowfromOperatingActivities AS Decimal) AS NetCashFlowfromOperatingActivities"
