@@ -26,6 +26,7 @@ class ResearchQueryTool:
     def __init__(self, root):
         self.root = root
         self.database = r".\database.db"
+        self.valuation_curve = r'.\valuation_curve.db'
         self.generate_view()
         self.generate_panel()
         self.generate_menu()
@@ -110,7 +111,7 @@ class ResearchQueryTool:
         self.schema.add_command(label="Check FTSE100 Schema", command=lambda: self.inspect_table('FTSE100'))
         self.schema.add_separator()
         self.dbmenu.add_command(label="Rebuild Database", command=lambda: threadit(self.rebuild_database))
-    
+        self.dbmenu.add_command(label="Build Valuation Curve DB", command=lambda: threadit(self.build_valuation_curve_db))   
         # Add menu to root window        
         self.root.config(menu=self.topmenu)
         
@@ -148,6 +149,7 @@ class ResearchQueryTool:
         self.fins_menu.add_command(label="Cash and Debt", command=lambda: self.popup_tree(self.merge_financial_item_by_isin(sql.cashflow, sql.debt, self.ISIN())))
         self.fins_menu.add_separator()
         self.fins_menu.add_command(label="Cash, Debt, Income, Asset", command=lambda: self.popup_tree(self.recursive_merge_financials_by_isin([sql.cashflow, sql.debt, sql.assets, sql.income], self.ISIN(),0)))
+        self.fins_menu.add_command(label="Ratios", command=lambda: self.popup_tree(self.recursive_merge_financials_by_isin([sql.intcover, sql.debtequity, sql.debtcapital, sql.debtcapital, sql.wcta, sql.current], self.ISIN(),0)))
         self.fins_menu.add_command(label="Key Financials", command=lambda: self.popup_tree(self.recursive_merge_financials_by_isin(sql.key_fins_queries(), self.ISIN(),0)))
         self.fins_menu.add_command(label="Prices Merged", command=lambda: self.popup_tree(self.merge_prices(self.recursive_merge_financials_by_isin(sql.key_fins_queries(), self.ISIN(),0),self.ISIN())))
         self.fins_menu.add_command(label="Static Bond Data Added", command=lambda: self.popup_tree(self.add_static_bond_data(self.recursive_merge_financials_by_isin(sql.key_fins_queries(), self.ISIN(),0),'SeniorityType',self.ISIN())))
@@ -367,6 +369,14 @@ class ResearchQueryTool:
         # refresh view when database is rebuilt
         self.load_data(self.run_query(sql.mainview))
 
+    def build_valuation_curve_db(self):
+        ''' interpolates daily yields from the spot curve and injects into a database
+        '''
+        # all the work here is done in the imported interpolate_curve class
+        from valuation_curve_builder import interpolate_curve
+        interpolate_curve()
+        
+
     def inspect_table(self, db_table):
         ''' returns df table describing the columns and data types of a database table and 
             displays the information in a pop-up window containing a TreeView             '''
@@ -399,8 +409,9 @@ class ResearchQueryTool:
         isins = df['ISIN'].tolist()
         agg =[]
         for isin in isins:
-            data = self.recursive_merge_financials_by_isin([sql.revenue, sql.income, sql.cashflow, sql.assets, sql.liabilities,
-                                         sql.debt, sql.current_assets, sql.current_liabilities], isin, month_shift=3)
+            #data = self.recursive_merge_financials_by_isin([sql.revenue, sql.income, sql.cashflow, sql.assets, sql.liabilities,
+            #                             sql.debt, sql.current_assets, sql.current_liabilities], isin, month_shift=3)
+            data = self.recursive_merge_financials_by_isin([sql.intcover, sql.debtequity, sql.debtcapital, sql.debtcapital, sql.wcta, sql.current], isin, month_shift=3)
             data = self.merge_prices(data, isin)
             
             # confusingly, the below forward fills the financial data, so, for example, the september 
@@ -411,6 +422,8 @@ class ResearchQueryTool:
             data = self.add_static_bond_data(data, 'SeniorityType', isin)
             data = self.add_static_bond_data(data, 'Coupon', isin)
             data = self.add_static_bond_data(data, 'CouponFrequency', isin)
+            data = self.add_static_bond_data(data, 'Issuer', isin)
+            data = self.add_static_bond_data(data, 'Maturity', isin)
             agg.append(data)
         data = pd.concat(agg)
         
@@ -455,6 +468,14 @@ class sql:
     current_assets = "CAST(TotalCurrentAssets AS Decimal) AS TotalCurrentAssets"
     revenue = "CAST(RevenuefromBusinessActivitiesTotal AS Decimal) AS RevenuefromBusinessActivitiesTotal"
     income = "CAST(IncomebeforeTaxes AS Decimal) AS PretaxIncome"
+    intcover = "CAST(InterestCoverageRatio AS Decimal) AS InterestCoverageRatio"
+    debtequity= "CAST(TotalDebtPercentageofTotalEquity AS Decimal) AS TotalDebtPercentageofTotalEquity"
+    debtcapital= "CAST(TotalDebtPercentageofTotalCapital AS Decimal) AS TotalDebtPercentageofTotalCapital"    
+    quick= "CAST(CurrentRatio AS Decimal) AS CurrentRatio"    
+    current= "CAST(QuickRatio AS Decimal) AS QuickRatio"    
+    wcta= "CAST(WorkingCapitaltoTotalAssets AS Decimal) AS WorkingCapitaltoTotalAssets"    
+    debtcapital= "CAST(TotalDebtPercentageofTotalCapital AS Decimal) AS TotalDebtPercentageofTotalCapital"    
+
     
     # The ResearchQueryTool.RecursiveMergeByIsin function takes a list of the above financial queries and pops them until the recursive 
     # function terminates. Therefore, I need to define a new list each time it is run. Using the function below solves this.
