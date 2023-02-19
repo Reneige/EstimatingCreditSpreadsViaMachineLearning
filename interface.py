@@ -13,6 +13,7 @@ data set
 
 """
 
+
 from tkinter import Tk, ttk, LabelFrame, Button, Scrollbar, Toplevel, Menu
 import pandas as pd
 import sqlite3
@@ -58,7 +59,7 @@ class ResearchQueryTool:
         self.label_file = LabelFrame(root, text="Control Panel")
         self.label_file.place(height=250, width=550, y=250)
 
-        self.button3 = Button(self.label_file, text="Generate Research Data Table (30 sec)", 
+        self.button3 = Button(self.label_file, text="Generate Research Data Table (60+ sec)", 
                               command=lambda: new_excel(self.build_research_dataset()))
         
         self.button3.grid(row=0, column=4)
@@ -112,6 +113,7 @@ class ResearchQueryTool:
         self.schema.add_separator()
         self.dbmenu.add_command(label="Rebuild Database", command=lambda: threadit(self.rebuild_database))
         self.dbmenu.add_command(label="Build Valuation Curve DB", command=lambda: threadit(self.build_valuation_curve_db))   
+        self.dbmenu.add_command(label="Calculate Z-Spread Analytics", command=lambda: threadit(self.calc_zspread)) 
         # Add menu to root window        
         self.root.config(menu=self.topmenu)
         
@@ -126,9 +128,6 @@ class ResearchQueryTool:
         self.popup_menu.add_command(label="View Bond Info", command=lambda: self.popup_tree(self.transpose(self.run_query(f"SELECT * FROM Master WHERE ISIN = '{self.ISIN()}'"))))
         self.popup_menu.add_separator()
         self.popup_menu.add_command(label="Browse Price Data", command=lambda: self.popup_tree(self.run_query(f"SELECT * FROM Prices WHERE ISIN = '{self.ISIN()}' ORDER BY Date ASC")))
-        self.popup_menu.add_separator()
-        self.popup_menu.add_command(label="TEST", command=lambda: self.popup_tree(self.run_query('SELECT Date, "1.5yr" FROM Nominal_Curve')))
-
        
         # create cascading menu - financials
         self.fins_menu = Menu(self.popup_menu, tearoff=0)
@@ -153,11 +152,13 @@ class ResearchQueryTool:
         self.fins_menu.add_command(label="Key Financials", command=lambda: self.popup_tree(self.recursive_merge_financials_by_isin(sql.key_fins_queries(), self.ISIN(),0)))
         self.fins_menu.add_command(label="Prices Merged", command=lambda: self.popup_tree(self.merge_prices(self.recursive_merge_financials_by_isin(sql.key_fins_queries(), self.ISIN(),0),self.ISIN())))
         self.fins_menu.add_command(label="Static Bond Data Added", command=lambda: self.popup_tree(self.add_static_bond_data(self.recursive_merge_financials_by_isin(sql.key_fins_queries(), self.ISIN(),0),'SeniorityType',self.ISIN())))
+        self.fins_menu.add_separator()
+        self.fins_menu.add_command(label="Build Research Data Set for ISIN", command=lambda: self.popup_tree(self.build_research_dataset(self.ISIN())))
 
         # bind right-click to the context menu method
         self.tree_view.bind("<Button-3>", self.context_menu)
 
-    def context_menu(self, event):       
+    def context_menu(self, event):
         ''' captures the right-click event and sets the row clicked to item instance variable '''
         
         self.item =self.tree_view.identify_row(event.y)       
@@ -192,8 +193,14 @@ class ResearchQueryTool:
 
     def popup_scatter_plot(self, df,x,y,title):
         ''' creates a pop-up window displaying a scatter plot of a dataframe '''
+        # Convert timestramps to date
+        df['Date'] = list(map(timestamp_to_date,df['Date']))
+        
+        # Create popup window for plot
         pop_up = Toplevel()
         pop_up.title('plot viewer')
+        
+        # Create and display plot. Add title
         figure = plt.Figure(figsize=(10,5), dpi=100)
         ax = figure.add_subplot(111)
         chart_type = FigureCanvasTkAgg(figure, pop_up)
@@ -375,7 +382,13 @@ class ResearchQueryTool:
         # all the work here is done in the imported interpolate_curve class
         from valuation_curve_builder import interpolate_curve
         interpolate_curve()
-        
+
+    def calc_zspread(self):
+        ''' runs the z-spread calculation module'''
+        import ZSpreadCalc
+        runner = ZSpreadCalc.ZSpread_Calculator()
+        data = runner.run()
+        return self.popup_tree(data)
 
     def inspect_table(self, db_table):
         ''' returns df table describing the columns and data types of a database table and 
@@ -399,14 +412,20 @@ class ResearchQueryTool:
         return self.popup_tree(df)
 
 
-    def build_research_dataset(self):
+    def build_research_dataset(self, isins=None):
         ''' Produces main research data table. Note :            
             When building the research data set, financials are extracted first with their dates
             pushed forward 3 months with month_shift parameter. Then the price data is JOINED on that 
             future date. This ensures prices are 3 months after financial reporting dates. 
         '''
-        df = self.run_query("SELECT DISTINCT ISIN FROM Prices")
-        isins = df['ISIN'].tolist()
+        # added below handling to allow this to be used on single bond in GUI
+        if isins == None:
+            df = self.run_query("SELECT DISTINCT ISIN FROM Prices")
+            isins = df['ISIN'].tolist()
+        else:
+            # convert string to list for use below
+            isins = [isins]
+            
         agg =[]
         for isin in isins:
             #data = self.recursive_merge_financials_by_isin([sql.revenue, sql.income, sql.cashflow, sql.assets, sql.liabilities,
@@ -453,7 +472,7 @@ class sql:
     ''' A class for storing useful SQL queries'''
     
     # mainview generates the list of bonds to view in the tool
-    mainview = """SELECT DISTINCT Prices.ISIN, Master.Issuer, Master.Coupon, strftime('%d-%m-%Y', Master.Maturity) AS Maturity
+    mainview = """SELECT DISTINCT Prices.ISIN, Master.Issuer, Master.Coupon, strftime('%d-%m-%Y', Master.Maturity) AS Maturity, Master.IssueDate, Master.FirstCouponDate, Master.CouponFrequency
                        FROM Master 
                        INNER JOIN Prices
                        ON Master.ISIN = Prices.ISIN
@@ -494,6 +513,12 @@ class sql:
     ftse_risk_return = 'SELECT Date, "Daily Rolling 22 Day Sample StDev" AS FTSE_22_day_rolling_stdev,\
                         "Daily Rolling 22 Day Geometric Return" AS FTSE_22_day_rolling_return FROM FTSE100'
     vix_usd = 'SELECT Date, Close AS "VIX_Close" FROM VIX'
+
+
+def timestamp_to_date(time):
+    ''' simple function to convert timestamps to dates'''
+    item = pd.Timestamp(time)
+    return item.date()
 
    
 ''' The below instantiates the main GUI and triggers the main loop ''' 
