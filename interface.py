@@ -148,7 +148,7 @@ class ResearchQueryTool:
         self.fins_menu.add_command(label="Cash and Debt", command=lambda: self.popup_tree(self.merge_financial_item_by_isin(sql.cashflow, sql.debt, self.ISIN())))
         self.fins_menu.add_separator()
         self.fins_menu.add_command(label="Cash, Debt, Income, Asset", command=lambda: self.popup_tree(self.recursive_merge_financials_by_isin([sql.cashflow, sql.debt, sql.assets, sql.income], self.ISIN(),0)))
-        self.fins_menu.add_command(label="Ratios", command=lambda: self.popup_tree(self.recursive_merge_financials_by_isin([sql.intcover, sql.debtequity, sql.debtcapital, sql.debtcapital, sql.wcta, sql.current], self.ISIN(),0)))
+        self.fins_menu.add_command(label="Ratios", command=lambda: self.popup_tree(self.recursive_merge_financials_by_isin([sql.intcover, sql.debtequity, sql.debtcapital, sql.debtassets, sql.wcta, sql.current], self.ISIN(),0)))
         self.fins_menu.add_command(label="Key Financials", command=lambda: self.popup_tree(self.recursive_merge_financials_by_isin(sql.key_fins_queries(), self.ISIN(),0)))
         self.fins_menu.add_command(label="Prices Merged", command=lambda: self.popup_tree(self.merge_prices(self.recursive_merge_financials_by_isin(sql.key_fins_queries(), self.ISIN(),0),self.ISIN())))
         self.fins_menu.add_command(label="Static Bond Data Added", command=lambda: self.popup_tree(self.add_static_bond_data(self.recursive_merge_financials_by_isin(sql.key_fins_queries(), self.ISIN(),0),'SeniorityType',self.ISIN())))
@@ -353,7 +353,7 @@ class ResearchQueryTool:
         conn = sqlite3.Connection(self.database)
         df = pd.read_sql(f"{query}", conn)
         conn.close()
-        return df
+        return df 
     
     def run_clean_query(self, query):
         ''' runs an SQLite query via Pandas, replaces string nan with NaNs, drops NaN returns the dataframe '''
@@ -365,6 +365,13 @@ class ResearchQueryTool:
         conn.close()
         return df
     
+    def insert_to_db(self, df, table):
+        ''' Inserts DataFrame data into an SQL Table '''
+        conn = sqlite3.Connection(self.database)
+        df.to_sql(table, conn, if_exists='replace', index=False)   
+        conn.close()
+        return df
+
     def rebuild_database(self):
         ''' parses all the raw research data and feeds into an SQLite database that use used to drive all 
             functionality in this tool. Note this completely deltes the database and then re-creates it.
@@ -388,7 +395,7 @@ class ResearchQueryTool:
         import ZSpreadCalc
         runner = ZSpreadCalc.ZSpread_Calculator()
         data = runner.run()
-        return self.popup_tree(data)
+        self.insert_to_db(data, 'Prices')
 
     def inspect_table(self, db_table):
         ''' returns df table describing the columns and data types of a database table and 
@@ -411,7 +418,6 @@ class ResearchQueryTool:
         df = self.run_query(f"SELECT * FROM {db_table} WHERE {column} = {subset}")
         return self.popup_tree(df)
 
-
     def build_research_dataset(self, isins=None):
         ''' Produces main research data table. Note :            
             When building the research data set, financials are extracted first with their dates
@@ -430,7 +436,7 @@ class ResearchQueryTool:
         for isin in isins:
             #data = self.recursive_merge_financials_by_isin([sql.revenue, sql.income, sql.cashflow, sql.assets, sql.liabilities,
             #                             sql.debt, sql.current_assets, sql.current_liabilities], isin, month_shift=3)
-            data = self.recursive_merge_financials_by_isin([sql.intcover, sql.debtequity, sql.debtcapital, sql.debtcapital, sql.wcta, sql.current], isin, month_shift=3)
+            data = self.recursive_merge_financials_by_isin([sql.intcover, sql.debtequity, sql.debtcapital, sql.debtassets, sql.wcta, sql.current], isin, month_shift=3)
             data = self.merge_prices(data, isin)
             
             # confusingly, the below forward fills the financial data, so, for example, the september 
@@ -493,7 +499,7 @@ class sql:
     quick= "CAST(CurrentRatio AS Decimal) AS CurrentRatio"    
     current= "CAST(QuickRatio AS Decimal) AS QuickRatio"    
     wcta= "CAST(WorkingCapitaltoTotalAssets AS Decimal) AS WorkingCapitaltoTotalAssets"    
-    debtcapital= "CAST(TotalDebtPercentageofTotalCapital AS Decimal) AS TotalDebtPercentageofTotalCapital"    
+    debtassets= "CAST(TotalDebtPercentageofTotalAssets AS Decimal) AS TotalDebtPercentageofTotalAssets"    
 
     
     # The ResearchQueryTool.RecursiveMergeByIsin function takes a list of the above financial queries and pops them until the recursive 

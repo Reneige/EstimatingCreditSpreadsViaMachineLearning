@@ -81,7 +81,7 @@ def discounted_cf_w_spread(cf, days, spot_yield, spread):
     return cf/(math.pow((1+spot_yield+spread),(days/365.25)))
 
 
-tst = """SELECT DISTINCT Prices.ISIN, Prices.Bid, Prices.Date, Prices.ZSpread, Master.Issuer, Master.Coupon, strftime('%d-%m-%Y', Master.Maturity) AS Maturity, Master.IssueDate, Master.FirstCouponDate, Master.CouponFrequency
+tst = """SELECT DISTINCT Prices.*, Master.Issuer, Master.Coupon, strftime('%d-%m-%Y', Master.Maturity) AS Maturity, Master.IssueDate, Master.FirstCouponDate, Master.CouponFrequency
                    FROM Master 
                    INNER JOIN Prices
                    ON Master.ISIN = Prices.ISIN
@@ -140,7 +140,7 @@ class ZSpread_Calculator:
             self.progressbar.progress_step()
     
         data = pd.concat(calcs)
-        return data    
+        return data[['Date','Bid','Ask','BidYld','AskYld','BidYChg','Calculated_DirtyPrice','ZSpread','Calculated_ZSpread','RedemptionDate','ID','ISIN']]
 
     def query(self, query, db):
         conn = sqlite3.connect(db)
@@ -243,5 +243,5 @@ class ZSpread_Calculator:
                       #  print(f"spread : {spread}   calc price {calculated_price}   target   {dirty_market_price}")
             spreads.append(spread*10000)
             dirtyprices.append(dirty_market_price)
-        self.bonds['calculated_dirty_price'] = dirtyprices
-        self.bonds['calculated_zspread'] = spreads
+        self.bonds['Calculated_DirtyPrice'] = dirtyprices
+        self.bonds['Calculated_ZSpread'] = spreads
