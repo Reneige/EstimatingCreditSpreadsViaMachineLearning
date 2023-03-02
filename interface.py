@@ -314,7 +314,7 @@ class ResearchQueryTool:
         
         df = self.query_item_by_isin(list_of_items.pop(), isin, month_shift)
         if len(list_of_items) > 0:
-            return df.merge(self.recursive_merge_financials_by_isin(list_of_items, isin, month_shift), on='Date')
+            return df.merge(self.recursive_merge_financials_by_isin(list_of_items, isin, month_shift), on='Date', how='left')
         else:
             return df     
 
@@ -436,7 +436,9 @@ class ResearchQueryTool:
         for isin in isins:
             #data = self.recursive_merge_financials_by_isin([sql.revenue, sql.income, sql.cashflow, sql.assets, sql.liabilities,
             #                             sql.debt, sql.current_assets, sql.current_liabilities], isin, month_shift=3)
-            data = self.recursive_merge_financials_by_isin([sql.intcover, sql.debtequity, sql.debtcapital, sql.debtassets, sql.wcta, sql.current], isin, month_shift=3)
+            data = self.recursive_merge_financials_by_isin([sql.revenue, sql.income, sql.cashflow, sql.assets, sql.liabilities, 
+                                                            sql.debt, sql.current_assets, sql.current_liabilities,sql.intcover, 
+                                                            sql.debtequity, sql.debtcapital, sql.debtassets, sql.wcta, sql.current], isin, month_shift=3)
             data = self.merge_prices(data, isin)
             
             # confusingly, the below forward fills the financial data, so, for example, the september 
