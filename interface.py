@@ -14,7 +14,7 @@ data set
 """
 
 
-from tkinter import Tk, ttk, LabelFrame, Button, Scrollbar, Toplevel, Menu
+from tkinter import Tk, ttk, LabelFrame, Button, Scrollbar, Toplevel, Menu, messagebox
 import pandas as pd
 import sqlite3
 import matplotlib.pyplot as plt
@@ -33,6 +33,7 @@ class ResearchQueryTool:
         self.generate_menu()
         self.generate_drop_down_menu()
         self.load_data(self.run_query(sql.mainview))
+        self.training_data = None
         
     ''' ------------------------------ GUI Methods  ----------------------------------'''
     
@@ -60,10 +61,16 @@ class ResearchQueryTool:
         self.label_file.place(height=250, width=550, y=250)
 
         self.button3 = Button(self.label_file, text="Generate Research Data Table (60+ sec)", 
-                              command=lambda: new_excel(self.build_research_dataset()))
-        
-        self.button3.grid(row=0, column=4)
+                              command=lambda: new_excel(self.build_research_dataset()))        
+        self.button3.grid(row=0, column=0)
 
+        self.button4 = Button(self.label_file, text="Grab Data from Clipboard", 
+                              command=lambda: self.grab_data())
+        self.button4.grid(row=0, column=1)
+
+        self.button5 = Button(self.label_file, text="Train Neural Network", 
+                              command=lambda: self.train_model_nn())
+        self.button5.grid(row=0, column=2)
 
     def generate_menu(self):
         
@@ -207,6 +214,31 @@ class ResearchQueryTool:
         chart_type.get_tk_widget().pack()
         df.plot(x=x, y=y, style='.', legend=True, ax=ax)
         ax.set_title(title)
+
+    def popup_learning_curve(self, history):
+        ''' creates a pop-up window displaying training results '''
+        
+        # Create popup window for plot
+        pop_up = Toplevel()
+        pop_up.title('plot viewer')
+        
+        fig = plt.figure()
+        fig.add_subplot(1,2,1)
+        plt.plot(history.history['loss'], label='train loss')
+        plt.plot(history.history['val_loss'], label='val loss')
+        plt.legend()
+        plt.grid(True)
+        plt.xlabel('epoch')
+
+        fig.add_subplot(1,2,2)
+        plt.plot(history.history['mean_absolute_error'], label='mae')
+        plt.plot(history.history['val_mean_absolute_error'], label='val mae')
+        plt.legend()
+        plt.grid(True)
+        plt.xlabel('epoch')
+
+        chart_type = FigureCanvasTkAgg(fig, pop_up)
+        chart_type.get_tk_widget().pack()
 
     def popup_tree(self, df):        
         ''' creates a pop-up window displaying the data contents of a dataframe with export to excel functionality '''
@@ -434,8 +466,6 @@ class ResearchQueryTool:
             
         agg =[]
         for isin in isins:
-            #data = self.recursive_merge_financials_by_isin([sql.revenue, sql.income, sql.cashflow, sql.assets, sql.liabilities,
-            #                             sql.debt, sql.current_assets, sql.current_liabilities], isin, month_shift=3)
             data = self.recursive_merge_financials_by_isin([sql.revenue, sql.income, sql.cashflow, sql.assets, sql.liabilities, 
                                                             sql.debt, sql.current_assets, sql.current_liabilities,sql.intcover, 
                                                             sql.debtequity, sql.debtcapital, sql.debtassets, sql.wcta, sql.current], isin, month_shift=3)
@@ -464,8 +494,80 @@ class ResearchQueryTool:
         data = self.merge_econ_data_by_date(data, sql.ftse_risk_return)
         data = self.merge_econ_data_by_date(data, sql.vix_usd)
         return data
-         
-    
+
+    def grab_data(self):
+        # read data from clipboard
+        self.training_data = pd.read_clipboard(sep='\\s+')
+        
+        # Move Calculated Z-Spread column to end by setting column to popped column
+        try:
+            self.training_data['Calculated_ZSpread'] = self.training_data.pop('Calculated_ZSpread')
+        except:
+            messagebox.showinfo(message="Warning! Your data must include the column 'Calculated_ZSpread'. Did you grab headers?")
+            return
+        print(f"Captured Dataframe with original dimension : {self.training_data.shape}")
+        self.training_data = self.training_data._get_numeric_data()
+        print(f"Dimension after dropping non-numeric data : {self.training_data.shape}")
+
+    def train_model_nn(self):
+        # Check if data is present
+        if self.training_data is None:
+            messagebox.showinfo(message="No Training Data! Capture it from Clipboard first")
+            return
+        print("loading libraries")
+        from keras.models import Sequential
+        from keras.layers import Dense, BatchNormalization, Dropout
+        from keras.metrics import MeanAbsoluteError
+        from sklearn.model_selection import train_test_split
+        print("Running training")
+        
+        # get number of columns and fill nans with zeros
+        columns = self.training_data.shape[1]
+        dataset = self.training_data.fillna(0) 
+        
+        # split into input X and output y variables
+        dataset = dataset.to_numpy()
+        
+        # capture training data by slicing out the x and the y
+        X = dataset[:,0:columns-1]
+        y = dataset[:,columns-1]
+        
+        # set to float type 
+        X = np.asarray(X).astype('float32')
+        y = np.asarray(y).astype('float32')
+        X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=0)
+        
+        # define a keras model of a FNN with Four Dense layers
+        model = Sequential()
+        model.add(Dense(44, input_dim=columns-1, activation = 'relu'))
+        model.add(BatchNormalization())
+        model.add(Dropout(0.2))
+        model.add(Dense(22, activation='relu'))
+        model.add(BatchNormalization())
+        model.add(Dropout(0.2))
+        model.add(Dense(12, activation='relu'))
+        model.add(BatchNormalization())
+        model.add(Dropout(0.2))
+        model.add(Dense(1,activation='linear'))
+
+        # compile model        
+        model.compile(loss='mse', optimizer='adam', metrics=[MeanAbsoluteError()])
+        
+        # train model
+        history = model.fit(X_train,y_train, epochs=100, batch_size=60, validation_split=0.25)
+
+        # send history to popup learning curve chart
+        self.popup_learning_curve(history)
+        
+        #displays model info
+        print(model.summary())
+        
+        # evaluate the model on the test set
+        _,accuracy = model.evaluate(X_test,y_test)
+        print('Accuracy on the test set: %.2f', (accuracy))
+
+        
+        
 def threadit(targ):
     tr = Thread(target=targ)
     tr.start()
