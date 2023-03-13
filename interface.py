@@ -380,10 +380,13 @@ class ResearchQueryTool:
         return self.popup_scatter_plot(self.run_query(query),xaxis,yaxis,target_id)
 
     def run_query(self, query):
-        ''' runs an SQLite query via Pandas and returns the dataframe '''
+        ''' runs an SQLite query via Pandas and returns the dataframe or empty dataframe if query fails'''
         print(query)
         conn = sqlite3.Connection(self.database)
-        df = pd.read_sql(f"{query}", conn)
+        try:
+            df = pd.read_sql(f"{query}", conn)
+        except:
+            df = pd.DataFrame()
         conn.close()
         return df 
     
