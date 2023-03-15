@@ -20,14 +20,14 @@ import sqlite3
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 from threading import Thread
-import xlwings as xw
+#import xlwings as xw
 import numpy as np
 
 class ResearchQueryTool:
     def __init__(self, root):
         self.root = root
-        self.database = r".\database.db"
-        self.valuation_curve = r'.\valuation_curve.db'
+        self.database = r"./database.db"
+        self.valuation_curve = r'./valuation_curve.db'
         self.generate_view()
         self.generate_panel()
         self.generate_menu()
@@ -417,6 +417,7 @@ class ResearchQueryTool:
         
         # refresh view when database is rebuilt
         self.load_data(self.run_query(sql.mainview))
+        messagebox.showinfo(message="You may need to restart app for changes to take effect")
 
     def build_valuation_curve_db(self):
         ''' interpolates daily yields from the spot curve and injects into a database

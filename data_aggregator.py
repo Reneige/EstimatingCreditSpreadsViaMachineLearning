@@ -18,16 +18,16 @@ from Progress_Bar import Progress_Bar
 class database_builder:
     def __init__(self):
         
-        self.price_files = glob2.glob('.\**\Price Data\*.xlsx')
-        self.financial_files = glob2.glob('.\**\Financials\*.xlsx')
-        self.bond_universe = glob2.glob('.\**\Master List of Bonds\*.xlsx')
-        self.inflation_curve = r'.\Economic Data\Curves\Spot Implied Inflation Curve.xlsx'
-        self.nominal_curve = r'.\Economic Data\Curves\Spot Nominal Curve.xlsx'
-        self.gdp = r'.\Economic Data\ONS UK GDP Estimate Monthly.xlsx'
-        self.vix = r'.\Economic Data\VIX_History_cboe.xlsx'
-        self.ftse100 = r'.\Economic Data\Price History_20230208_FTSE100_refinitiv.xlsx'
+        self.price_files = glob2.glob('./**/Price Data/*.xlsx')
+        self.financial_files = glob2.glob('./**/Financials/*.xlsx')
+        self.bond_universe = glob2.glob('./**/Master List of Bonds/*.xlsx')
+        self.inflation_curve = r'./Economic Data/Curves/Spot Implied Inflation Curve.xlsx'
+        self.nominal_curve = r'./Economic Data/Curves/Spot Nominal Curve.xlsx'
+        self.gdp = r'./Economic Data/ONS UK GDP Estimate Monthly.xlsx'
+        self.vix = r'./Economic Data/VIX_History_cboe.xlsx'
+        self.ftse100 = r'./Economic Data/Price History_20230208_FTSE100_refinitiv.xlsx'
         self.total_files = len(self.price_files) + len(self.financial_files) + len(self.bond_universe) + 4
-        self.db = r'.\database.db'
+        self.db = r'./database.db'
         self.progress(self.total_files)
         self.run()
 
