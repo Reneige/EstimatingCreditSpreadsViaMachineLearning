@@ -20,7 +20,7 @@ import sqlite3
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 from threading import Thread
-#import xlwings as xw
+import xlwings as xw
 import numpy as np
 
 class ResearchQueryTool:
