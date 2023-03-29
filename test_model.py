@@ -210,17 +210,22 @@ train_std = np.std(y_train)
 test_avg = np.average(y_test)
 test_std = np.std(y_test)
 
+# note the y_predict here is a matrix (4723,1) and I need it as an array (4723,) or it does a matrix calculation rather than
+# and element-wise calculation, so use .flatten() here
+accuracy_stdev = (y_predict.flatten() - y_test).std()
+
 
 print(f"\nThe Average of the train and test Z-Spreads are {train_avg:.2f} and {test_avg:.2f} respectively")
 print(f"\nThe Standard Deviation of the train and test Z-Spreads are {train_std:.2f} and {test_std:.2f} respectively")
 print(f"\nThe Neural Network model predicted the z-spread with an mean absolute accruacy of {accuracy:.2f}")
+print(f"\nThe Neural Network model predicted the z-spread with a st-dev of {accuracy_stdev:.2f}")
 
 
 
 ''' NOW lets employ a boosted regression tree model'''
 
 
-boosted_regression_tree_model = XGBRegressor(n_estimators=1000, learning_rate=0.05)
+boosted_regression_tree_model = XGBRegressor(n_estimators=1000, learning_rate=0.05, eval_metric='mae')
 
 # cross validation with SKLearn - Repeats K-Fold n times with different randomisation in each repetition.
 cv = RepeatedKFold(n_splits=10, n_repeats=3, random_state=1)
@@ -228,16 +233,24 @@ cv = RepeatedKFold(n_splits=10, n_repeats=3, random_state=1)
 scores = cross_val_score(boosted_regression_tree_model, X_train, y_train, scoring='neg_mean_absolute_error', cv=cv, n_jobs=-1)
 print('Mean Error: %.3f St-Dev (%.3f)' % (scores.mean(), scores.std()) )
 
-boosted_regression_tree_model.fit(X_train, y_train)
+boosted_regression_tree_model.fit(X_train, y_train, eval_set=[(X_train, y_train), (X_test,y_test)], verbose=False)
 
 y_predict_brt = boosted_regression_tree_model.predict(X_test)
 print("Mean Absolute Error: " + str(mean_absolute_error(y_predict_brt, y_test)))
+print("St-Dev of error: " + str((y_predict_brt - y_test).std()))
 
 pl = plot_tree(boosted_regression_tree_model)
-pl.show()
 
+
+# plot training results - requires setting eval_set in model fitting
 results = boosted_regression_tree_model.evals_result()
 
+fig.add_subplot(2,2,2)
+plt.plot(results['validation_0']['mae'], label='brt_train_mae')
+plt.plot(results['validation_1']['mae'], label='brt_val_mae')
+plt.legend()
+plt.grid(True)
+plt.xlabel('epoch')
 
 # use eli5 to show the weights
 from eli5 import show_weights
