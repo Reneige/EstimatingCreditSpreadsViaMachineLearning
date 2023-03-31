@@ -67,7 +67,20 @@ class sql:
                 sql.assets,               
                 sql.cashflow,                 
                 sql.income,
-                sql.revenue]
+                sql.revenue,
+                sql.wcta,
+                sql.debtassets,
+                sql.freecashflow,
+                sql.current_assets_2,
+                sql.current_liabilities_2,
+                sql.assets2,
+                sql.netdebt,
+                sql.operating_profit,
+                sql.roa,
+                sql.roe,
+                sql.debtcaptial,
+                sql.debtequity,
+                sql.cash]
 
     # All the below are economic data items: yields, inflation, gdp, ftse stdev/returns and VIX returns in usd.    
     nominal_yield_1yr = 'SELECT Date, "1yr" AS "1yr_nominal_gov_yield" FROM Nominal_Curve'
