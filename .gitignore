@@ -5,6 +5,6 @@
 /valuation_curve.db
 /ZSpreadCalc - Copy.py
 /valuation_curve.db
-*.htm
-*.png
-*.xlsx
+#*.htm
+#*.png
+#*.xlsx
