@@ -57,17 +57,17 @@ class sql:
     # A single implementation of this list would only function once, because after the recursive function pops all elements, the list would be empty.
     
     def key_fins_queries():
-        return [sql.revenue, 
-                sql.income, 
-                sql.cashflow, 
-                sql.assets, 
-                sql.liabilities, 
-                sql.debt, 
-                sql.current_assets, 
-                sql.current_liabilities,
-                sql.intcover,
+        return [sql.quick,
                 sql.current,
-                sql.quick]
+                sql.intcover,
+                sql.current_liabilities,
+                sql.current_assets, 
+                sql.debt,                 
+                sql.liabilities,                 
+                sql.assets,               
+                sql.cashflow,                 
+                sql.income,
+                sql.revenue]
 
     # All the below are economic data items: yields, inflation, gdp, ftse stdev/returns and VIX returns in usd.    
     nominal_yield_1yr = 'SELECT Date, "1yr" AS "1yr_nominal_gov_yield" FROM Nominal_Curve'

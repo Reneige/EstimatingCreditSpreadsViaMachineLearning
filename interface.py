@@ -141,6 +141,9 @@ class ResearchQueryTool:
         self.fins_menu = Menu(self.popup_menu, tearoff=0)
         self.popup_menu.add_cascade(label="Financials", menu=self.fins_menu)
         
+        # create cascading menu - single items
+        self.key_items = Menu(self.fins_menu, tearoff=0)           
+        
         # A note on the below - these are mostly for testing whether the queries I need to build my research
         # Data set are working. They are not designed for readability. Sorry! 
         
@@ -150,8 +153,7 @@ class ResearchQueryTool:
         self.fins_menu.add_command(label="Browse Balance-Sheet Data", command=lambda: self.popup_tree(self.query_financials_by_isin("*",self.ISIN(),"Balance-Sheet")))
         self.fins_menu.add_command(label="Browse Cash Flow Data", command=lambda: self.popup_tree(self.query_financials_by_isin("*",self.ISIN(),"Cash-Flow")))
         self.fins_menu.add_separator()
-        self.fins_menu.add_command(label="Total Assets", command=lambda: self.popup_tree(self.query_item_by_isin(sql.assets, self.ISIN(),0)))
-        self.fins_menu.add_command(label="Total Liabilities", command=lambda: self.popup_tree(self.query_item_by_isin(sql.liabilities, self.ISIN(),0)))
+        self.fins_menu.add_cascade(label="Key Items", menu=self.key_items)
         self.fins_menu.add_separator()
         self.fins_menu.add_command(label="Cash and Debt", command=lambda: self.popup_tree(self.merge_financial_item_by_isin(sql.cashflow, sql.debt, self.ISIN())))
         self.fins_menu.add_separator()
@@ -162,6 +164,19 @@ class ResearchQueryTool:
         self.fins_menu.add_command(label="Static Bond Data Added", command=lambda: self.popup_tree(self.add_static_bond_data(self.recursive_merge_financials_by_isin(sql.key_fins_queries(), self.ISIN(),0),'SeniorityType',self.ISIN())))
         self.fins_menu.add_separator()
         self.fins_menu.add_command(label="Build Research Data Set for ISIN", command=lambda: self.popup_tree(self.build_research_dataset(self.ISIN())))
+
+        # Key Items submenu
+        self.key_items.add_command(label="Revenue", command=lambda: self.popup_tree(self.query_item_by_isin(sql.revenue, self.ISIN(),0)))
+        self.key_items.add_command(label="Net Income", command=lambda: self.popup_tree(self.query_item_by_isin(sql.income, self.ISIN(),0)))
+        self.key_items.add_command(label="Net Cash Flow from Operating Activities", command=lambda: self.popup_tree(self.query_item_by_isin(sql.cashflow, self.ISIN(),0)))
+        self.key_items.add_command(label="Total Debt", command=lambda: self.popup_tree(self.query_item_by_isin(sql.debt, self.ISIN(),0)))
+        self.key_items.add_command(label="Total Assets", command=lambda: self.popup_tree(self.query_item_by_isin(sql.assets, self.ISIN(),0)))
+        self.key_items.add_command(label="Total Liabilities", command=lambda: self.popup_tree(self.query_item_by_isin(sql.liabilities, self.ISIN(),0)))
+        self.key_items.add_command(label="Current Assets", command=lambda: self.popup_tree(self.query_item_by_isin(sql.current_assets, self.ISIN(),0)))
+        self.key_items.add_command(label="Current Liabilities", command=lambda: self.popup_tree(self.query_item_by_isin(sql.current_liabilities, self.ISIN(),0)))
+        self.key_items.add_command(label="Interest Coverage Ratio", command=lambda: self.popup_tree(self.query_item_by_isin(sql.intcover, self.ISIN(),0)))
+        self.key_items.add_command(label="Current Ratio", command=lambda: self.popup_tree(self.query_item_by_isin(sql.current, self.ISIN(),0)))
+        self.key_items.add_command(label="Quick Ratio", command=lambda: self.popup_tree(self.query_item_by_isin(sql.quick, self.ISIN(),0)))
 
         # bind right-click to the context menu method
         self.tree_view.bind("<Button-3>", self.context_menu)
@@ -315,13 +330,16 @@ class ResearchQueryTool:
         return self.run_query(query)
 
     def query_item_by_isin(self, item, isin, month_shift):
-        ''' Here you can shift the dates forward using the months_shift parameter
+        ''' Queries financial data by ISIN. The ISIN is linked to financial data via the Master table using
+            the company name as a key. Here you can shift the dates forward using the months_shift parameter
             This is useful for lagging data / adjusting for look-ahead bias.
         '''
         
         # this requires ugly handling because just using '+3 month' can result in date falling on the
         # first day of the following month if following month has fewer days. (weak implementation by 
-        # SQLite. So here I have set to first day of month, shifted by x months + 1, then gone back a day.
+        # SQLite). So here I have set to first day of month, shifted by x months + 1, then gone back a day.
+        
+        # must use DISTINCT since duplication can exist from parsing financial summary as well as statements
         
         month_shift += 1
         query = f"""SELECT DISTINCT DATETIME(PeriodEndDate, 'start of month', '+{month_shift} month', '-1 day') AS Date,
@@ -343,11 +361,11 @@ class ResearchQueryTool:
         return df1.merge(df2, on='Date')
 
     def recursive_merge_financials_by_isin(self, list_of_items, isin, month_shift):
-        ''' recursively merges data through queries stored in a list '''
+        ''' recursively merges data through queries stored in a list - must be outer merge or a single blank query breaks process'''
         
         df = self.query_item_by_isin(list_of_items.pop(), isin, month_shift)
         if len(list_of_items) > 0:
-            return df.merge(self.recursive_merge_financials_by_isin(list_of_items, isin, month_shift), on='Date', how='left')
+            return df.merge(self.recursive_merge_financials_by_isin(list_of_items, isin, month_shift), on='Date', how='outer')
         else:
             return df     
 
