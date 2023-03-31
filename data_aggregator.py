@@ -139,7 +139,10 @@ class database_builder:
         findata = findata.loc[:,~findata.columns.str.lower().duplicated()]
         findata.columns = findata.columns.str.replace(' ', '')
         findata.columns = findata.columns.str.replace('-', '')
-      
+        findata.columns = findata.columns.str.replace('%', '')
+        findata.columns = findata.columns.str.replace('&', '')
+        findata.columns = findata.columns.str.replace(',', '')
+        
         # aggregate bond universe / security master data and remove spaces and dashes from column names
         self.progressbar.change_message("Parsing Bond Static Data ")
         list_of_dfs3 = list(map(self.read_bond_universe_master,self.bond_universe))

@@ -22,6 +22,7 @@ from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 from threading import Thread
 import xlwings as xw
 import numpy as np
+from sql import sql
 
 class ResearchQueryTool:
     def __init__(self, root):
@@ -470,9 +471,17 @@ class ResearchQueryTool:
             
         agg =[]
         for isin in isins:
-            data = self.recursive_merge_financials_by_isin([sql.revenue, sql.income, sql.cashflow, sql.assets, sql.liabilities, 
-                                                            sql.debt, sql.current_assets, sql.current_liabilities,sql.intcover, 
-                                                            sql.debtequity, sql.debtcapital, sql.debtassets, sql.wcta, sql.current], isin, month_shift=3)
+            data = self.recursive_merge_financials_by_isin([sql.revenue, 
+                                                            sql.income, 
+                                                            sql.cashflow, 
+                                                            sql.assets, 
+                                                            sql.liabilities, 
+                                                            sql.debt,
+                                                            sql.current_assets, 
+                                                            sql.current_liabilities,
+                                                            sql.intcover,
+                                                            sql.current,
+                                                            sql.quick], isin, month_shift=3)
             data = self.merge_prices(data, isin)
             
             # confusingly, the below forward fills the financial data, so, for example, the september 
@@ -514,13 +523,15 @@ class ResearchQueryTool:
         print(f"Dimension after dropping non-numeric data : {self.training_data.shape}")
 
     def train_model_nn(self):
+        
         # Check if data is present
         if self.training_data is None:
             messagebox.showinfo(message="No Training Data! Capture it from Clipboard first")
             return
+        
         print("loading libraries")
         from keras.models import Sequential
-        from keras.layers import Dense, BatchNormalization, Dropout
+        from keras.layers import Dense
         from keras.metrics import MeanAbsoluteError
         from sklearn.model_selection import train_test_split
         print("Running training")
@@ -541,37 +552,34 @@ class ResearchQueryTool:
         y = np.asarray(y).astype('float32')
         X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=0)
         
-        # define a keras model of a FNN with Four Dense layers
-        model = Sequential()
-        model.add(Dense(44, input_dim=columns-1, activation = 'relu'))
-        model.add(BatchNormalization())
-        model.add(Dropout(0.2))
-        model.add(Dense(22, activation='relu'))
-        model.add(BatchNormalization())
-        model.add(Dropout(0.2))
-        model.add(Dense(12, activation='relu'))
-        model.add(BatchNormalization())
-        model.add(Dropout(0.2))
-        model.add(Dense(1,activation='linear'))
+        # define a keras model of a FFNN with Nine Dense layers
+        neural_network_model = Sequential()
+        neural_network_model.add(Dense(576, input_dim=columns-1, activation = 'relu'))
+        neural_network_model.add(Dense(288, activation = 'relu'))
+        neural_network_model.add(Dense(144, activation = 'relu'))
+        neural_network_model.add(Dense(72, activation = 'relu'))
+        neural_network_model.add(Dense(36, activation = 'relu'))
+        neural_network_model.add(Dense(18, activation='relu'))
+        neural_network_model.add(Dense(9, activation='relu'))
+        neural_network_model.add(Dense(3, activation='relu'))
+        neural_network_model.add(Dense(1,activation='linear'))
 
         # compile model        
-        model.compile(loss='mse', optimizer='adam', metrics=[MeanAbsoluteError()])
+        neural_network_model.compile(loss='mse', optimizer='adam', metrics=[MeanAbsoluteError()])
         
         # train model
-        history = model.fit(X_train,y_train, epochs=100, batch_size=60, validation_split=0.25)
+        history = neural_network_model.fit(X_train,y_train, epochs=200, batch_size=60, validation_split=0.25)
 
         # send history to popup learning curve chart
         self.popup_learning_curve(history)
         
         #displays model info
-        print(model.summary())
+        print(neural_network_model.summary())
         
         # evaluate the model on the test set
-        _,accuracy = model.evaluate(X_test,y_test)
+        _,accuracy = neural_network_model.evaluate(X_test,y_test)
         print('Accuracy on the test set: %.2f', (accuracy))
 
-        
-        
 def threadit(targ):
     tr = Thread(target=targ)
     tr.start()
@@ -581,53 +589,6 @@ def new_excel(df):
     wb.app.activate(steal_focus=True)
     sht=wb.sheets[0]
     sht.range('A1').options(index=False, header=True).value=df
-
-class sql:
-    ''' A class for storing useful SQL queries'''
-    
-    # mainview generates the list of bonds to view in the tool
-    mainview = """SELECT DISTINCT Prices.ISIN, Master.Issuer, Master.Coupon, strftime('%d-%m-%Y', Master.Maturity) AS Maturity, Master.IssueDate, Master.FirstCouponDate, Master.CouponFrequency
-                       FROM Master 
-                       INNER JOIN Prices
-                       ON Master.ISIN = Prices.ISIN
-                       ORDER BY Master.Issuer"""
-    
-    # The below extract financial statement items and cast them to float/decimal
-    cashflow = "CAST(NetCashFlowfromOperatingActivities AS Decimal) AS NetCashFlowfromOperatingActivities"
-    debt = "CAST(DebtLongTermTotal AS Decimal) AS DebtLongTermTotal"
-    assets = "CAST(TotalAssets AS Decimal) AS TotalAssets"  
-    liabilities = "CAST(TotalCurrentLiabilities AS Decimal) + CAST(TotalNonCurrentLiabilities AS Decimal) AS TotalLiabilities"
-    current_liabilities = "CAST(TotalCurrentLiabilities AS Decimal) AS TotalCurrentLiabilities"
-    current_assets = "CAST(TotalCurrentAssets AS Decimal) AS TotalCurrentAssets"
-    revenue = "CAST(RevenuefromBusinessActivitiesTotal AS Decimal) AS RevenuefromBusinessActivitiesTotal"
-    income = "CAST(IncomebeforeTaxes AS Decimal) AS PretaxIncome"
-    intcover = "CAST(InterestCoverageRatio AS Decimal) AS InterestCoverageRatio"
-    debtequity= "CAST(TotalDebtPercentageofTotalEquity AS Decimal) AS TotalDebtPercentageofTotalEquity"
-    debtcapital= "CAST(TotalDebtPercentageofTotalCapital AS Decimal) AS TotalDebtPercentageofTotalCapital"    
-    quick= "CAST(CurrentRatio AS Decimal) AS CurrentRatio"    
-    current= "CAST(QuickRatio AS Decimal) AS QuickRatio"    
-    wcta= "CAST(WorkingCapitaltoTotalAssets AS Decimal) AS WorkingCapitaltoTotalAssets"    
-    debtassets= "CAST(TotalDebtPercentageofTotalAssets AS Decimal) AS TotalDebtPercentageofTotalAssets"    
-
-    
-    # The ResearchQueryTool.RecursiveMergeByIsin function takes a list of the above financial queries and pops them until the recursive 
-    # function terminates. Therefore, I need to define a new list each time it is run. Using the function below solves this.
-    # A single implementation of this list would only function once, because after the recursive function pops all elements, the list would be empty.
-    
-    def key_fins_queries():
-        return [sql.revenue, sql.income, sql.cashflow, sql.assets, sql.liabilities, sql.debt, sql.current_assets, sql.current_liabilities]
-
-    # All the below are economic data items: yields, inflation, gdp, ftse stdev/returns and VIX returns in usd.    
-    nominal_yield_1yr = 'SELECT Date, "1yr" AS "1yr_nominal_gov_yield" FROM Nominal_Curve'
-    nominal_yield_3yr = 'SELECT Date, "3yr" AS "3yr_nominal_gov_yield" FROM Nominal_Curve'      
-    nominal_yield_5yr = 'SELECT Date, "5yr" AS "5yr_nominal_gov_yield" FROM Nominal_Curve'      
-    nominal_yield_10yr = 'SELECT Date, "10yr" AS "10yr_nominal_gov_yield" FROM Nominal_Curve'      
-    be_inflation_5yr = 'SELECT Date, "5yr" AS "5yr_breakeven_inflation" FROM Inflation_Curve'      
-    gdp_gr_estimate = 'SELECT "2M Lagged Date" AS Date, "Gross Value Added Growth" AS "GDP_Growth_estimate" FROM GDP'
-    ftse_risk_return = 'SELECT Date, "Daily Rolling 22 Day Sample StDev" AS FTSE_22_day_rolling_stdev,\
-                        "Daily Rolling 22 Day Geometric Return" AS FTSE_22_day_rolling_return FROM FTSE100'
-    vix_usd = 'SELECT Date, Close AS "VIX_Close" FROM VIX'
-
 
 def timestamp_to_date(time):
     ''' simple function to convert timestamps to dates'''
