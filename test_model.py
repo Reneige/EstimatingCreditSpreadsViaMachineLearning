@@ -6,7 +6,7 @@ Created on Sun Feb 12 16:58:57 2023
 """
 
 
-from keras.models import Sequential
+from keras.models import Sequential, load_model
 from tensorflow.keras.optimizers import Adam
 from keras.layers import Dense, BatchNormalization, Dropout
 from keras.regularizers import l2
@@ -37,14 +37,14 @@ from sklearn.metrics import mean_absolute_error
 
 # load the dataset
 #dataset1 = pd.read_excel('training_set_feb12.xlsx')
-dataset1 = pd.read_excel('training_set_feb21.xlsx')
+dataset1 = pd.read_excel('training_set_mar31.xlsx')
 dataset1 = dataset1.fillna(0) 
 # split into input X and output y variables
 dataset= dataset1.to_numpy()
 
 
-X = dataset[:,6:24]
-y = dataset[:,24]
+X = dataset[:,0:25]
+y = dataset[:,25]
 
 #Let's print the dimension of X. You may also want to have a look of a few samples.
 print(X.shape)
@@ -89,7 +89,7 @@ mean 0 and unit variance. The network would then be trained on a more stable dis
 # define a keras model of a MLP network with three Dense layers
 neural_network_model = Sequential()
 
-neural_network_model.add(Dense(576, input_dim=18, activation = 'relu'))
+neural_network_model.add(Dense(576, input_dim=25, activation = 'relu'))
 neural_network_model.add(Dense(288, activation = 'relu'))
 
 neural_network_model.add(Dense(144, activation = 'relu'))
@@ -222,6 +222,14 @@ print(f"\nThe Neural Network model predicted the z-spread with a st-dev of {accu
 
 
 
+''' to save and load nn model use the below'''
+#neural_network_model.save('./9-layer-576-top_model')
+
+''' load'''
+#new_model = load_model('../results mar 31/9-layer-576-top_model')
+
+
+
 ''' NOW lets employ a boosted regression tree model'''
 
 
@@ -281,6 +289,7 @@ booster = boosted_regression_tree_model.get_booster()
 print(booster.get_dump()[0])
 
 
+boosted_regression_tree_model.save_model('mar31_brt_model.json')
 
 '''
 # linux only
