@@ -17,6 +17,7 @@ import matplotlib.pyplot as plt
 import pandas as pd
 import seaborn as sns
 import numpy as np
+import xgboost as xgb
 from xgboost import XGBRegressor, plot_tree
 from sklearn.model_selection import RepeatedKFold, cross_val_score
 from sklearn.metrics import mean_absolute_error
@@ -244,8 +245,14 @@ print('Mean Error: %.3f St-Dev (%.3f)' % (scores.mean(), scores.std()) )
 boosted_regression_tree_model.fit(X_train, y_train, eval_set=[(X_train, y_train), (X_test,y_test)], verbose=False)
 
 y_predict_brt = boosted_regression_tree_model.predict(X_test)
+
+# get the model R2 ((y_true - y_pred)** 2).sum() for the XGB results. Note: built-in function uses X_test vs y_test.
+brt_r2 = boosted_regression_tree_model.score(X_test, y_test)
+
 print("Mean Absolute Error: " + str(mean_absolute_error(y_predict_brt, y_test)))
 print("St-Dev of error: " + str((y_predict_brt - y_test).std()))
+print(f"The model's estimation coefficient of determination (R2 - R Squared) is: {brt_r2}")
+
 
 pl = plot_tree(boosted_regression_tree_model)
 
@@ -261,9 +268,15 @@ plt.grid(True)
 plt.xlabel('epoch')
 
 # use eli5 to show the weights
-from eli5 import show_weights
+from eli5 import show_weights, show_prediction
 import webbrowser
-html_obj = show_weights(boosted_regression_tree_model)
+
+# capture feature names
+col_names = dataset1.columns.tolist()
+col_names.pop()
+
+
+html_obj = show_weights(boosted_regression_tree_model, feature_names=col_names, top=100)
 
 # Write html object to a file (adjust file path; Windows path is used here)
 with open('xgboost_weights.htm','wb') as f:
@@ -273,23 +286,35 @@ with open('xgboost_weights.htm','wb') as f:
 url = r'xgboost_weights.htm'
 webbrowser.open(url, new=2)
 
-from eli5 import show_prediction
-html_obj_pred = show_prediction(boosted_regression_tree_model, X_test[0], show_feature_values=True)
+
+html_obj_pred = show_prediction(boosted_regression_tree_model, X_test[20], show_feature_values=True, feature_names=col_names)
 
 # Write html object to a file (adjust file path; Windows path is used here)
-with open('xgboost_pred.htm','wb') as f:
+with open('xgboost_pred_X_test_20.htm','wb') as f:
     f.write(html_obj_pred.data.encode("UTF-8"))
 
 # Open the stored HTML file on the default browser
 url2 = r'xgboost_pred.htm'
 webbrowser.open(url2, new=2)
 
-# shows a tree
+# push feature_names into get_booster
+boosted_regression_tree_model.get_booster().feature_names = col_names
+
+# shows a tree - there are n trees defined as n_estimators
 booster = boosted_regression_tree_model.get_booster()
-print(booster.get_dump()[0])
+print(booster.get_dump()[999])
 
+# returns occurrences of the features in splits. 
+# If you divide these occurrences by their sum, you'll get Item 1. 
+# Except here, features with 0 importance will be excluded.
+feature_importance = boosted_regression_tree_model.get_booster().get_score(importance_type='weight')
+feature_importance = boosted_regression_tree_model.get_booster().get_fscore() # same thing
 
-boosted_regression_tree_model.save_model('mar31_brt_model.json')
+# plots the values of the above feature importance, i.e. the number of occurrences in splits.
+feature_importance_plt = xgb.plot_importance(boosted_regression_tree_model)
+
+# save xgboost model
+#boosted_regression_tree_model.save_model('mar31_brt_model.json')
 
 '''
 # linux only
