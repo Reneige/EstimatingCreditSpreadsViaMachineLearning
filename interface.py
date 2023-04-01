@@ -199,7 +199,8 @@ class ResearchQueryTool:
     def context_menu(self, event):
         ''' captures the right-click event and sets the row clicked to item instance variable '''
         
-        self.item =self.tree_view.identify_row(event.y)       
+        self.item =self.tree_view.identify_row(event.y)
+        
         try:
             self.tree_view.selection_set(self.item)
             self.popup_menu.tk_popup(event.x_root, event.y_root, 0)
@@ -542,7 +543,8 @@ class ResearchQueryTool:
         return data
 
     def grab_data(self):
-        # read data from clipboard
+        ''' Reads ML model training data from clipboard '''
+        
         self.training_data = pd.read_clipboard(sep='\\s+')
         
         # Move Calculated Z-Spread column to end by setting column to popped column
@@ -581,6 +583,7 @@ class ResearchQueryTool:
         
 
     def train_model_nn(self):
+        ''' Trains the neural network model and stores it as an instance variable '''
         
         # Check if training data is present
         if self.training_data is None:
@@ -619,6 +622,7 @@ class ResearchQueryTool:
 
 
     def train_model_brt(self):
+        ''' Trains the gradient boosted trees model and stores it as an instance variable '''
 
         # Check if training data is present
         if self.training_data is None:
