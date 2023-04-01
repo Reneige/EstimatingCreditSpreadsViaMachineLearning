@@ -38,11 +38,14 @@ from sklearn.metrics import mean_absolute_error
 
 # load the dataset
 #dataset1 = pd.read_excel('training_set_feb12.xlsx')
-dataset1 = pd.read_excel('training_set_mar31.xlsx')
-dataset1 = dataset1.fillna(0) 
+dataset1 = pd.read_excel('./Results/training_set_mar31.xlsx')
+dataset1 = dataset1.dropna(0) 
 # split into input X and output y variables
 dataset= dataset1.to_numpy()
 
+# capture feature names
+col_names = dataset1.columns.tolist()
+col_names.pop()
 
 X = dataset[:,0:25]
 y = dataset[:,25]
@@ -271,10 +274,6 @@ plt.xlabel('epoch')
 from eli5 import show_weights, show_prediction
 import webbrowser
 
-# capture feature names
-col_names = dataset1.columns.tolist()
-col_names.pop()
-
 
 html_obj = show_weights(boosted_regression_tree_model, feature_names=col_names, top=100)
 
@@ -287,16 +286,27 @@ url = r'xgboost_weights.htm'
 webbrowser.open(url, new=2)
 
 
-html_obj_pred = show_prediction(boosted_regression_tree_model, X_test[20], show_feature_values=True, feature_names=col_names)
+html_obj_pred = show_prediction(boosted_regression_tree_model, X_test[116], show_feature_values=True, feature_names=col_names)
+html_obj_pred = show_prediction(boosted_regression_tree_model, X_test[116], show_feature_values=True)
 
 # Write html object to a file (adjust file path; Windows path is used here)
-with open('xgboost_pred_X_test_20.htm','wb') as f:
+with open('xgboost_pred_X_test_116.htm','wb') as f:
     f.write(html_obj_pred.data.encode("UTF-8"))
 
 # Open the stored HTML file on the default browser
-url2 = r'xgboost_pred.htm'
+url2 = r'xgboost_pred_X_test_116.htm'
 webbrowser.open(url2, new=2)
 
+
+# save xgboost model
+#boosted_regression_tree_model.save_model('apr1_brt_model.json')
+
+#Load model
+#boosted_regression_tree_model = xgb.XGBRegressor()
+#boosted_regression_tree_model.load_model('./Results/apr1_brt_model.json')
+
+
+''' note once we override the feature_names we break the above show_prediction function so save model first'''
 # push feature_names into get_booster
 boosted_regression_tree_model.get_booster().feature_names = col_names
 
@@ -312,13 +322,6 @@ feature_importance = boosted_regression_tree_model.get_booster().get_fscore() # 
 
 # plots the values of the above feature importance, i.e. the number of occurrences in splits.
 feature_importance_plt = xgb.plot_importance(boosted_regression_tree_model)
-
-# save xgboost model
-#boosted_regression_tree_model.save_model('mar31_brt_model.json')
-
-#Load model
-#boosted_regression_tree_model = xgb.XGBRegressor()
-#boosted_regression_tree_model.load_model('./Results/mar31_brt_model.json')
 
 
 '''
