@@ -14,7 +14,7 @@ data set
 """
 
 
-from tkinter import Tk, ttk, LabelFrame, Button, Scrollbar, Toplevel, Menu, messagebox
+from tkinter import Tk, ttk, LabelFrame, Button, Scrollbar, Toplevel, Menu, messagebox, Label, filedialog
 import pandas as pd
 import sqlite3
 import matplotlib.pyplot as plt
@@ -23,6 +23,8 @@ from threading import Thread
 import xlwings as xw
 import numpy as np
 from sql import sql
+import datetime
+import os
 
 class ResearchQueryTool:
     def __init__(self, root):
@@ -35,6 +37,8 @@ class ResearchQueryTool:
         self.generate_drop_down_menu()
         self.load_data(self.run_query(sql.mainview))
         self.training_data = None
+        self.neural_network_model = None
+        self.boosted_regression_tree_model = None
         
     ''' ------------------------------ GUI Methods  ----------------------------------'''
     
@@ -61,17 +65,11 @@ class ResearchQueryTool:
         self.label_file = LabelFrame(root, text="Control Panel")
         self.label_file.place(height=250, width=550, y=250)
 
-        self.button3 = Button(self.label_file, text="Generate Research Data Table (60+ sec)", 
-                              command=lambda: new_excel(self.build_research_dataset()))        
-        self.button3.grid(row=0, column=0)
-
-        self.button4 = Button(self.label_file, text="Grab Data from Clipboard", 
-                              command=lambda: self.grab_data())
-        self.button4.grid(row=0, column=1)
-
-        self.button5 = Button(self.label_file, text="Train Neural Network", 
-                              command=lambda: self.train_model_nn())
-        self.button5.grid(row=0, column=2)
+        self.epochs_label = Label(self.label_file, text="Number of Epochs for Neural Network: ").grid(row=0, column=3)
+        self.epochs = ttk.Combobox(self.label_file, values=[1,50,100,150,200,300,400,500,600,700,800])
+        self.epochs.current(4)
+        self.epochs.grid(row=0, column=4)
+        
 
     def generate_menu(self):
         
@@ -83,14 +81,25 @@ class ResearchQueryTool:
         self.datamenu = Menu(self.topmenu, tearoff=0)
         self.dbmenu = Menu(self.topmenu, tearoff=0)
         self.schema = Menu(self.dbmenu, tearoff=0)
+        self.modelmenu = Menu(self.topmenu, tearoff=0)
+        self.resultsmenu = Menu(self.topmenu, tearoff=0)
         
         # Add submenu cascade elements
         self.topmenu.add_cascade(label="File", menu=self.filemenu)
         self.topmenu.add_cascade(label="Data", menu=self.datamenu)
         self.topmenu.add_cascade(label="Database", menu=self.dbmenu)
+        self.topmenu.add_cascade(label="Build ML Model", menu=self.modelmenu)
+        self.topmenu.add_cascade(label="Research Results", menu=self.resultsmenu)
         
         # Add menu commands
         self.filemenu.add_command(label="Export Bond List", command=lambda: new_excel(self.run_query(sql.mainview)))
+        self.filemenu.add_separator()
+        self.filemenu.add_command(label="Save Neural Network Model", command=lambda: threadit(self.save_nn_model))
+        self.filemenu.add_command(label="Load Neural Network Model", command=lambda: threadit(self.load_nn_model))
+        self.filemenu.add_separator()
+        self.filemenu.add_command(label="Save Gradient Boosted Tree Model", command=lambda: threadit(self.save_brt_model))
+        self.filemenu.add_command(label="Load Gradient Boosted Tree Model", command=lambda: threadit(self.load_brt_model))
+        
         
         self.datamenu.add_command(label="Browse Price Data", command=lambda: self.display_table_data('Prices'))
         self.datamenu.add_command(label="Browse Nominal Curve Data", command=lambda: self.display_table_data('Nominal_Curve'))
@@ -122,6 +131,12 @@ class ResearchQueryTool:
         self.dbmenu.add_command(label="Rebuild Database", command=lambda: threadit(self.rebuild_database))
         self.dbmenu.add_command(label="Build Valuation Curve DB", command=lambda: threadit(self.build_valuation_curve_db))   
         self.dbmenu.add_command(label="Calculate Z-Spread Analytics", command=lambda: threadit(self.calc_zspread)) 
+        self.modelmenu.add_command(label="Build ML Training Data Set", command=lambda: threadit(self.build_research_dataset)) 
+        self.modelmenu.add_command(label="Grab Training Data from Clipboard", command=lambda: threadit(self.grab_data)) 
+        self.modelmenu.add_command(label="Train Neural Network", command=lambda: threadit(self.train_model_nn)) 
+        self.modelmenu.add_command(label="Train Gradient Boosted Trees", command=lambda: threadit(self.train_model_brt)) 
+        self.resultsmenu.add_command(label="Browse Results", command=lambda: self.popup_tree(self.run_query('SELECT * FROM Results')))
+
         # Add menu to root window        
         self.root.config(menu=self.topmenu)
         
@@ -532,71 +547,157 @@ class ResearchQueryTool:
         
         # Move Calculated Z-Spread column to end by setting column to popped column
         try:
-            self.training_data['Calculated_ZSpread'] = self.training_data.pop('Calculated_ZSpread')
+            self.training_data['Calculated_Zspread'] = self.training_data.pop('Calculated_Zspread')
         except:
-            messagebox.showinfo(message="Warning! Your data must include the column 'Calculated_ZSpread'. Did you grab headers?")
+            messagebox.showinfo(message="Warning! Your data must include the column 'Calculated_Zspread'. Did you grab headers?")
             return
+        
         print(f"Captured Dataframe with original dimension : {self.training_data.shape}")
         self.training_data = self.training_data._get_numeric_data()
         print(f"Dimension after dropping non-numeric data : {self.training_data.shape}")
 
-    def train_model_nn(self):
-        
-        # Check if data is present
-        if self.training_data is None:
-            messagebox.showinfo(message="No Training Data! Capture it from Clipboard first")
-            return
-        
-        print("loading libraries")
-        from keras.models import Sequential
-        from keras.layers import Dense
-        from keras.metrics import MeanAbsoluteError
+        # grab column names and store as features
+        self.feature_names = self.training_data.columns.tolist()
+        self.feature_names.pop()
+
         from sklearn.model_selection import train_test_split
         print("Running training")
         
-        # get number of columns and fill nans with zeros
-        columns = self.training_data.shape[1]
-        dataset = self.training_data.fillna(0) 
+        # get number of columns (including y-variable / labels) and drop NaN rows
+        self.number_of_columns = self.training_data.shape[1]
+        dataset = self.training_data.dropna(0) 
         
         # split into input X and output y variables
         dataset = dataset.to_numpy()
         
         # capture training data by slicing out the x and the y
-        X = dataset[:,0:columns-1]
-        y = dataset[:,columns-1]
+        X = dataset[:,0: self.number_of_columns-1]
+        y = dataset[:, self.number_of_columns-1]
         
         # set to float type 
         X = np.asarray(X).astype('float32')
         y = np.asarray(y).astype('float32')
-        X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=0)
+        self.X_train, self.X_test, self.y_train, self.y_test = train_test_split(X, y, test_size=0.2, random_state=0)    
         
-        # define a keras model of a FFNN with Nine Dense layers
-        neural_network_model = Sequential()
-        neural_network_model.add(Dense(576, input_dim=columns-1, activation = 'relu'))
-        neural_network_model.add(Dense(288, activation = 'relu'))
-        neural_network_model.add(Dense(144, activation = 'relu'))
-        neural_network_model.add(Dense(72, activation = 'relu'))
-        neural_network_model.add(Dense(36, activation = 'relu'))
-        neural_network_model.add(Dense(18, activation='relu'))
-        neural_network_model.add(Dense(9, activation='relu'))
-        neural_network_model.add(Dense(3, activation='relu'))
-        neural_network_model.add(Dense(1,activation='linear'))
+
+    def train_model_nn(self):
+        
+        # Check if training data is present
+        if self.training_data is None:
+            messagebox.showinfo(message="No Training Data! Capture it from Clipboard first")
+            return
+    
+        print("loading libraries")
+        from keras.models import Sequential
+        from keras.layers import Dense
+        from keras.metrics import MeanAbsoluteError
+
+        
+        # define a keras model of a FFNN with Nine Dense layers and size input based on columns - 1 (removing 1 for label column)
+        self.neural_network_model = Sequential()
+        self.neural_network_model.add(Dense(576, input_dim= self.number_of_columns-1, activation = 'relu'))
+        self.neural_network_model.add(Dense(288, activation = 'relu'))
+        self.neural_network_model.add(Dense(144, activation = 'relu'))
+        self.neural_network_model.add(Dense(72, activation = 'relu'))
+        self.neural_network_model.add(Dense(36, activation = 'relu'))
+        self.neural_network_model.add(Dense(18, activation='relu'))
+        self.neural_network_model.add(Dense(9, activation='relu'))
+        self.neural_network_model.add(Dense(3, activation='relu'))
+        self.neural_network_model.add(Dense(1,activation='linear'))
 
         # compile model        
-        neural_network_model.compile(loss='mse', optimizer='adam', metrics=[MeanAbsoluteError()])
+        self.neural_network_model.compile(loss='mse', optimizer='adam', metrics=[MeanAbsoluteError()])
         
-        # train model
-        history = neural_network_model.fit(X_train,y_train, epochs=200, batch_size=60, validation_split=0.25)
+        # train model and store training history        
+        history = self.neural_network_model.fit(self.X_train, self.y_train, epochs=int(self.epochs.get()), batch_size=60, validation_split=0.25)
+        
+        # store model predictions on test data
+        self.y_predict_nn = self.neural_network_model.predict(self.X_test)
 
         # send history to popup learning curve chart
         self.popup_learning_curve(history)
+
+
+    def train_model_brt(self):
+
+        # Check if training data is present
+        if self.training_data is None:
+            messagebox.showinfo(message="No Training Data! Capture it from Clipboard first")
+            return
+            
+        from xgboost import XGBRegressor
+      
+        # compile and train boosted regression tree model
+        self.boosted_regression_tree_model = XGBRegressor(n_estimators=1000, learning_rate=0.05, eval_metric='mae')
+        self.boosted_regression_tree_model.fit(self.X_train, self.y_train, eval_set=[(self.X_train, self.y_train), (self.X_test, self.y_test)], verbose=True)
         
-        #displays model info
-        print(neural_network_model.summary())
+        # store model predictions
+        self.y_predict_brt = self.boosted_regression_tree_model.predict(self.X_test)
         
-        # evaluate the model on the test set
-        _,accuracy = neural_network_model.evaluate(X_test,y_test)
-        print('Accuracy on the test set: %.2f', (accuracy))
+    def save_nn_model(self):
+        ''' Allows the user to save a trained neural network to a folder '''
+        
+        if self.neural_network_model is None:
+            messagebox.showinfo(message='you must train a model before you can save it')
+            return
+        
+        folder = filedialog.askdirectory(initialdir="./Models/", title='Select Folder for Model to save')
+        
+        if folder is None: # asksaveasfile return `None` if dialog closed with "cancel".
+            return
+        
+        folder = folder+"/nn_model_"+str(datetime.date.today())
+        print(folder)
+        self.neural_network_model.save(folder)
+        
+    def load_nn_model(self):
+        ''' Allows the user to load a saved neural network for prediction '''
+        from keras.models import load_model
+        
+        folder_selected = filedialog.askdirectory(parent=root, initialdir="./Models/", title='Select the Folder with your saved Model')
+        
+        try:
+            self.neural_network_model = load_model(folder_selected)
+        except:
+            messagebox.showinfo(message=f'Error! No Keras Model found in {folder_selected}')
+
+    def save_brt_model(self):
+        ''' Allows the user to save a trained neural network to a folder '''
+        
+        if self.boosted_regression_tree_model is None:
+            messagebox.showinfo(message='you must train a model before you can save it')
+            return
+        
+        file = filedialog.asksaveasfilename(initialdir="./Models/", title='Save Gradient Boosted Tree Model As...', filetypes = [('Json File','*.json')])
+        
+        if file is None: # asksaveasfile return `None` if dialog closed with "cancel".
+            return
+        
+        # handling for file extension
+        if file[-4:] != 'json':
+            file = file+'.json'
+            
+        self.boosted_regression_tree_model.save_model(file)
+        
+        
+    def load_brt_model(self):
+        ''' Allows the user to load a saved neural network for prediction '''
+        import xgboost as xgb 
+
+        # ask for model file to load        
+        file = filedialog.askopenfile(initialdir="./Models/", title='Save Gradient Boosted Tree Model As...', filetypes = [('Json File','*.json')])
+        
+        if file:
+            filepath = os.path.abspath(file.name)
+        
+        # try loading model
+        btr = xgb.XGBRegressor()
+        try:
+            self.boosted_regression_tree_model = btr.load_model(filepath)
+        except:
+            messagebox.showinfo(message='Error! No XGBoost Model loaded')
+        
+        
 
 def threadit(targ):
     tr = Thread(target=targ)

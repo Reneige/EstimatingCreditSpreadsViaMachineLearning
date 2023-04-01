@@ -21,7 +21,8 @@ import xgboost as xgb
 from xgboost import XGBRegressor, plot_tree
 from sklearn.model_selection import RepeatedKFold, cross_val_score
 from sklearn.metrics import mean_absolute_error
-
+import lime
+from lime import lime_tabular
 
 #SeniorityType	SeniorityTypeShortDescription
 #SR	Senior Unsecured
@@ -38,7 +39,7 @@ from sklearn.metrics import mean_absolute_error
 
 # load the dataset
 #dataset1 = pd.read_excel('training_set_feb12.xlsx')
-dataset1 = pd.read_excel('./Results/training_set_mar31.xlsx')
+dataset1 = pd.read_excel('../training_set_apr1.xlsx')
 dataset1 = dataset1.dropna(0) 
 # split into input X and output y variables
 dataset= dataset1.to_numpy()
@@ -49,6 +50,23 @@ col_names.pop()
 
 X = dataset[:,0:25]
 y = dataset[:,25]
+
+
+# testing effects of standardizing
+#X = dataset[:,0:20]
+#x1 = dataset[:,20:25]
+#y = dataset[:,25]
+
+# standardize
+#mean_train = X.mean(axis=0)
+#std_train = X.std(axis=0)
+#X = (X-mean_train)/std_train
+
+#a = pd.DataFrame(X)
+#b = pd.DataFrame(x1)
+# add coumns one by one
+#a[21]= b[0]
+
 
 #Let's print the dimension of X. You may also want to have a look of a few samples.
 print(X.shape)
@@ -79,10 +97,6 @@ unstable weight learning. In this case, the common practice is to standardize th
 mean 0 and unit variance. The network would then be trained on a more stable distribution of inputs.
 """
 
-#mean_train = X_train.mean(axis=0)
-#std_train = X_train.std(axis=0)
-#X_train = (X_train-mean_train)/std_train
-#X_test = (X_test-mean_train)/std_train # Apply the same transformation on the testing set 
 
 
 """
@@ -322,6 +336,24 @@ feature_importance = boosted_regression_tree_model.get_booster().get_fscore() # 
 
 # plots the values of the above feature importance, i.e. the number of occurrences in splits.
 feature_importance_plt = xgb.plot_importance(boosted_regression_tree_model)
+
+
+
+# Create a Lime explainer - more info here: https://www.kaggle.com/code/mirceavaman/explain-your-model-predictions-with-lime
+explainer = lime_tabular.LimeTabularExplainer(X_train, 
+                                                   feature_names=col_names,
+                                                  class_names=['ZSpread'],
+                                                  verbose=True, 
+                                                  mode='regression')
+
+
+observation=116
+
+exp = explainer.explain_instance(X_test[observation], neural_network_model.predict, num_features=25)
+exp.save_to_file(f'nm_pred_X_test_{observation}.html', labels=None, predict_proba=True, show_predicted_value=True)
+exp.as_list()
+plo = exp.as_pyplot_figure()
+
 
 
 '''
