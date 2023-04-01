@@ -1,0 +1,17 @@
+NN Model
+
+The Average of the train and test Z-Spreads are 152.46 and 152.63 respectively
+
+The Standard Deviation of the train and test Z-Spreads are 79.43 and 79.45 respectively
+
+The Neural Network model predicted the z-spread with an mean absolute accruacy of 22.31
+
+The Neural Network model predicted the z-spread with a st-dev of 39.37
+
+
+BRT Model
+
+Mean Error: -18.775 St-Dev (0.515)
+Mean Absolute Error: 17.968422
+St-Dev of error: 29.031227
+The model's estimation coefficient of determination (R2 - R Squared) is: 0.8664843623170002

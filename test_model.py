@@ -227,7 +227,7 @@ print(f"\nThe Neural Network model predicted the z-spread with a st-dev of {accu
 #neural_network_model.save('./9-layer-576-top_model')
 
 ''' load'''
-#new_model = load_model('../results mar 31/9-layer-576-top_model')
+#neural_network_model = load_model('../results mar 31/9-layer-576-top_model')
 
 
 
@@ -315,6 +315,11 @@ feature_importance_plt = xgb.plot_importance(boosted_regression_tree_model)
 
 # save xgboost model
 #boosted_regression_tree_model.save_model('mar31_brt_model.json')
+
+#Load model
+#boosted_regression_tree_model = xgb.XGBRegressor()
+#boosted_regression_tree_model.load_model('./Results/mar31_brt_model.json')
+
 
 '''
 # linux only

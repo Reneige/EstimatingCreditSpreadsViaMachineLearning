@@ -3,3 +3,4 @@ tensorflow==2.7.0
 matplotlib==3.4.3
 xlwings==0.24.9
 xgboost==1.7.3
+eli5==0.13.0
