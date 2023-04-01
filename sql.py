@@ -92,3 +92,4 @@ class sql:
     ftse_risk_return = 'SELECT Date, "Daily Rolling 22 Day Sample StDev" AS FTSE_22_day_rolling_stdev,\
                         "Daily Rolling 22 Day Geometric Return" AS FTSE_22_day_rolling_return FROM FTSE100'
     vix_usd = 'SELECT Date, Close AS "VIX_Close" FROM VIX'
+    results = 'SELECT * FROM Results'

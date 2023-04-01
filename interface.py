@@ -45,7 +45,7 @@ class ResearchQueryTool:
     def generate_view(self):
         
         # create frame with title
-        self.frame1 = LabelFrame(root, text="Database Viewer")
+        self.frame1 = LabelFrame(self.root, text="Database Viewer")
         self.frame1.place(height=250, width=550)
         
         # place treeview within frame
@@ -135,7 +135,7 @@ class ResearchQueryTool:
         self.modelmenu.add_command(label="Grab Training Data from Clipboard", command=lambda: threadit(self.grab_data)) 
         self.modelmenu.add_command(label="Train Neural Network", command=lambda: threadit(self.train_model_nn)) 
         self.modelmenu.add_command(label="Train Gradient Boosted Trees", command=lambda: threadit(self.train_model_brt)) 
-        self.resultsmenu.add_command(label="Browse Results", command=lambda: self.popup_tree(self.run_query('SELECT * FROM Results')))
+        self.resultsmenu.add_command(label="Browse Results", command=lambda: self.popup_tree(self.run_query('SELECT * FROM Results'), results_window=True))
 
         # Add menu to root window        
         self.root.config(menu=self.topmenu)
@@ -207,6 +207,11 @@ class ResearchQueryTool:
         finally:
             self.popup_menu.grab_release()
 
+    def ISIN(self):
+        ''' returns the ISIN of a bond clicked in the main data viewer'''
+        return self.tree_view.item(self.item)['values'][0]
+    
+
     def load_data(self, df):
         ''' method used to populate data into the main data viewer / TreeView '''
         
@@ -272,37 +277,41 @@ class ResearchQueryTool:
         chart_type = FigureCanvasTkAgg(fig, pop_up)
         chart_type.get_tk_widget().pack()
 
-    def popup_tree(self, df):        
-        ''' creates a pop-up window displaying the data contents of a dataframe with export to excel functionality '''
+    ''' ------------------------------ GUI Elements related to Pop-Up TreeView ----------------------------------'''
+
+    def popup_tree(self, df, results_window=False):        
+        ''' creates a pop-up window displaying the data contents of a dataframe with export to excel functionality 
+            the results_window flag activates a right-click menu on the data
+        '''
         
         # create popup window 
         pop_up = Toplevel()
         pop_up.title('data viewer')
         pop_up.geometry("700x300")
-        tree_view = ttk.Treeview(pop_up)
+        self.popup_treeview = ttk.Treeview(pop_up)
         
         #The below commands makes the Treeview data resize upon window resizing
         pop_up.grid_rowconfigure(0, weight=1)
         pop_up.grid_columnconfigure(0, weight=1)
-        tree_view.grid(column=0, row=0, sticky="nsew")
+        self.popup_treeview.grid(column=0, row=0, sticky="nsew")
         
         # initialise treeview columns to dastaframe columns
-        tree_view["column"] = list(df.columns)
-        tree_view["show"] = "headings"
+        self.popup_treeview["column"] = list(df.columns)
+        self.popup_treeview["show"] = "headings"
 
         # set columns names
-        for column in tree_view["columns"]:
-            tree_view.heading(column, text=column)
+        for column in self.popup_treeview["columns"]:
+            self.popup_treeview.heading(column, text=column)
         
         # push data into columns
         df_rows = df.to_numpy().tolist()
         for row in df_rows:
-            tree_view.insert("","end", values=row)
+            self.popup_treeview.insert("","end", values=row)
 
         #add scrollbars to freeview on pop-up
-        treescrolly = Scrollbar(pop_up, orient="vertical", command=tree_view.yview)
-        treescrollx = Scrollbar(pop_up, orient="horizontal", command=tree_view.xview)
-        tree_view.configure(xscrollcommand=treescrollx.set, yscrollcommand=treescrolly.set)
+        treescrolly = Scrollbar(pop_up, orient="vertical", command=self.popup_treeview.yview)
+        treescrollx = Scrollbar(pop_up, orient="horizontal", command=self.popup_treeview.xview)
+        self.popup_treeview.configure(xscrollcommand=treescrollx.set, yscrollcommand=treescrolly.set)
         treescrollx.grid(column=0, row=1, sticky="nsew")
         treescrolly.grid(column=1, row=0, sticky="nsew")
 
@@ -311,11 +320,50 @@ class ResearchQueryTool:
         popup_submenu = Menu(popup_menu, tearoff=0)
         popup_menu.add_cascade(label="Export Data", menu=popup_submenu)
         popup_submenu.add_command(label="Export to Excel", command=lambda: new_excel(df))
+        popup_submenu.add_command(label="test", command=lambda: self.popup_tv_item())
         pop_up.config(menu=popup_menu)
+        
+        # this functionality is only triggered if viewing model results - allows for a right-click context menu
+        if results_window == True:
+            self.generate_popup_tv_drop_down_menu()
+        
+            # bind right-click to the context menu method
+            self.popup_treeview.bind("<Button-3>", self.popup_tv_context_menu)
 
-    def ISIN(self):
-        ''' returns the ISIN of a bond clicked in the main data viewer'''
-        return self.tree_view.item(self.item)['values'][0]
+    def generate_popup_tv_drop_down_menu(self):       
+        ''' creates a drop-down context menu and binds it to the right click on the popup_treeview '''
+        
+        self.popup_tv_menu = Menu(self.popup_treeview, tearoff=0)
+        self.popup_tv_menu.add_command(label="Display Data", command=lambda: self.popup_tv_item())
+        self.popup_tv_menu.add_command(label="Predict Value with Neural Network", command=lambda: self.nn_predict_selection())
+
+
+    def popup_tv_context_menu(self, event):
+        ''' captures the right-click event and sets the row clicked to item instance variable '''
+        
+        self.popup_treeview_item =self.popup_treeview.identify_row(event.y)
+        
+        try:
+            self.popup_treeview.selection_set(self.popup_treeview_item)
+            self.popup_tv_menu.tk_popup(event.x_root, event.y_root, 0)
+        finally:
+            self.popup_tv_menu.grab_release()
+    
+    def popup_tv_item(self):
+        print (self.popup_treeview.item(self.popup_treeview_item)['values'])
+        #return self.popup_treeview.item(self.popup_treeview_item)['values']
+    
+    def nn_predict_selection(self):
+        ''' makes a prediction with the Neural Network model off the set of data currently available '''
+        
+        if self.neural_network_model is None:
+            messagebox.showinfo(message='you must train or load a model before you can predict with it')
+            return
+        data = self.popup_treeview.item(self.popup_treeview_item)['values'][0:25]
+        data = list(map(float,data))
+        X_test = np.array([data])
+        y_predict = self.neural_network_model.predict(X_test)
+        print(y_predict)
 
 
     ''' ------------------------------ Data Methods  ----------------------------------'''
