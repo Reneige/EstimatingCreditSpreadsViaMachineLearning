@@ -40,6 +40,10 @@ class ResearchQueryTool:
         self.neural_network_model = None
         self.boosted_regression_tree_model = None
         self.feature_names = None
+        self.X_train = None
+        self.X_test = None
+        self.y_train = None
+        self.y_test = None
         
     ''' ------------------------------ GUI Methods  ----------------------------------'''
     
@@ -142,11 +146,12 @@ class ResearchQueryTool:
         self.dbmenu.add_command(label="Build Valuation Curve DB", command=lambda: threadit(self.build_valuation_curve_db))   
         self.dbmenu.add_command(label="Calculate Z-Spread Analytics", command=lambda: threadit(self.calc_zspread)) 
         
-        # build model menu items
+        # build model menu items - removed threading as that causes with ML model training and exploration and causes very slow TreeView loads
         self.buildmodelmenu.add_command(label="Build ML Training Data Set", command=lambda: threadit(self.build_research_dataset)) 
-        self.buildmodelmenu.add_command(label="Grab Training Data from Clipboard", command=lambda: threadit(self.grab_data)) 
-        self.buildmodelmenu.add_command(label="Train Neural Network", command=lambda: threadit(self.train_model_nn)) 
-        self.buildmodelmenu.add_command(label="Train Gradient Boosted Trees", command=lambda: threadit(self.train_model_brt)) 
+        self.buildmodelmenu.add_command(label="Grab Training Data from Clipboard", command=lambda: self.grab_data())
+        self.buildmodelmenu.add_command(label="Display Training Data", command=lambda: self.display_data())
+        self.buildmodelmenu.add_command(label="Train Neural Network", command=lambda: self.train_model_nn())
+        self.buildmodelmenu.add_command(label="Train Gradient Boosted Trees", command=lambda: self.train_model_brt())
         
         # inspect model munu items
         self.inspectmodelmenu.add_command(label="Inspect Neural Network Model Weights", command=lambda: threadit(self.inspect_nn)) 
@@ -398,17 +403,49 @@ class ResearchQueryTool:
 
     def nn_explain_selection(self):
         ''' Explains the Neural Network prediction using LIME '''
-        
+            
         if self.neural_network_model is None:
-            messagebox.showinfo(message='you must train or load a Neural Network model before you can predict with it')
+            messagebox.showinfo(message='you must train a Neural Network model before you can predict with it')
             return
         
-        # capture data from treeview, convert from string to float, insert into 3D numpy array (1,25) , explain with LIME
-        data = self.popup_treeview.item(self.popup_treeview_item)['values'][0:25]
+        if self.X_train is None:
+            messagebox.showinfo(message='Unfortunately this is currently only available on a freshly trained model, not a loaded model (because LIME requires access to x_train data)')
+            return
+        
+        # import lime ML model explainer library
+        from lime import lime_tabular
+        
+        # capture number of features for model for input
+        features = self.neural_network_model.input_shape[1]
+        
+        # capture data from treeview, convert from string to float, insert into 2D numpy array (25,) , explain with LIME
+        data = self.popup_treeview.item(self.popup_treeview_item)['values'][0:features]
         data = list(map(float,data))
-        X_test = np.array([data])
-        y_predict = self.neural_network_model.predict(X_test)
-        print(y_predict)
+        X_test = np.array(data)
+        
+        # create Lime Tabular explainer object to explain NN Result
+        explainer = lime_tabular.LimeTabularExplainer(self.X_train, 
+                                                           feature_names=self.feature_names,
+                                                          class_names=['ZSpread'],
+                                                          verbose=True, 
+                                                          mode='regression')
+
+        # create explainer plot with Lime
+        exp = explainer.explain_instance(X_test,  self.neural_network_model.predict, num_features=features)
+        figure = exp.as_pyplot_figure()
+
+        # Create popup window
+        inspection_popup = Toplevel()
+        inspection_popup.title('LIME Explainer for NN Result')
+        
+        # resize figure and set so all data fits
+        figure.set_size_inches(10, 7)
+        figure.tight_layout() 
+        
+        # display
+        chart_type = FigureCanvasTkAgg(figure, inspection_popup)
+        chart_type.get_tk_widget().pack()
+        
 
     def brt_predict_selection(self):
         ''' makes a prediction with the Gradient Boosted Tree model off the set of data currently right-clicked '''
@@ -416,9 +453,12 @@ class ResearchQueryTool:
         if self.boosted_regression_tree_model is None:
             messagebox.showinfo(message='you must train or load a Gradient Boosted Tree model before you can predict with it')
             return
+
+        # capture model number of features with attribute 'n_features_in_' so to slice input data to only capture that number        
+        features = self.boosted_regression_tree_model.n_features_in_
         
         # capture data from treeview, convert from string to float, insert into 3D numpy array (1,25),  make prediction with BRT
-        data = self.popup_treeview.item(self.popup_treeview_item)['values'][0:25]
+        data = self.popup_treeview.item(self.popup_treeview_item)['values'][0:features]
         data = list(map(float,data))
         X_test = np.array([data])  
         y_predict = self.boosted_regression_tree_model.predict(X_test)
@@ -502,7 +542,7 @@ class ResearchQueryTool:
             return
         
         # copies the brt object and renames features (copying because renaming the features in the instance variable can cause issues)
-        brt = self.boosted_regression_tree_model.copy()
+        brt = self.boosted_regression_tree_model
         brt.get_booster().feature_names = self.feature_names 
                 
         # Create popup window
@@ -563,7 +603,11 @@ class ResearchQueryTool:
         X = np.asarray(X).astype('float32')
         y = np.asarray(y).astype('float32')
         self.X_train, self.X_test, self.y_train, self.y_test = train_test_split(X, y, test_size=0.2, random_state=0)    
-        
+    
+    def display_data(self):
+        ''' Displays the training data grabbed from clipboard - for debugging'''
+        data = pd.DataFrame(self.X_train)
+        self.popup_tree(data, results_window=False)
 
     def train_model_nn(self):
         ''' Trains the neural network model and stores it as an instance variable '''
@@ -603,6 +647,15 @@ class ResearchQueryTool:
         # send history to popup learning curve chart
         self.popup_learning_curve(history)
 
+        # create results dataframe
+        results = pd.DataFrame(self.X_test)
+        results.columns = self.feature_names
+        results['ACTUAL'] = self.y_test        
+        results['NN PREDICTED'] = self.y_predict_nn
+
+        # Ask if they would like to explore results
+        if messagebox.askquestion('Browse Results?', 'Would you like to browse the test data results?',icon='warning'):
+            self.popup_tree(results, results_window=True)
 
     def train_model_brt(self):
         ''' Trains the gradient boosted trees model and stores it as an instance variable '''
@@ -626,9 +679,10 @@ class ResearchQueryTool:
         results.columns = self.feature_names
         results['ACTUAL'] = self.y_test        
         results['BRT PREDICTED'] = self.y_predict_brt
-        
-        # display results in pop-up window for exploration
-        threadit(self.popup_tree(results, results_window=True))
+
+        # Ask if they would like to explore results
+        if messagebox.askquestion('Browse Results?', 'Would you like to browse the test data results? - Can be slow to load',icon='warning'):
+            self.popup_tree(results, results_window=True)
         
         
     def save_nn_model(self):

@@ -244,7 +244,7 @@ print(f"\nThe Neural Network model predicted the z-spread with a st-dev of {accu
 #neural_network_model.save('./9-layer-576-top_model')
 
 ''' load'''
-#neural_network_model = load_model('../results mar 31/9-layer-576-top_model')
+#neural_network_model = load_model('./Results/9-layer-576-top_model')
 
 
 
@@ -355,7 +355,7 @@ explainer = lime_tabular.LimeTabularExplainer(X_train,
 observation=116
 
 exp = explainer.explain_instance(X_test[observation], neural_network_model.predict, num_features=25)
-exp.save_to_file(f'nm_pred_X_test_{observation}.html', labels=None, predict_proba=True, show_predicted_value=True)
+#exp.save_to_file(f'nm_pred_X_test_{observation}.html', labels=None, predict_proba=True, show_predicted_value=True)
 exp.as_list()
 plo = exp.as_pyplot_figure()
 
