@@ -349,7 +349,6 @@ class ResearchQueryTool:
         popup_submenu = Menu(popup_menu, tearoff=0)
         popup_menu.add_cascade(label="Export Data", menu=popup_submenu)
         popup_submenu.add_command(label="Export to Excel", command=lambda: new_excel(df))
-        popup_submenu.add_command(label="test", command=lambda: self.popup_tv_item())
         pop_up.config(menu=popup_menu)
         
         ''' NOTE Below functionality is only triggered if viewing model results - allows for a right-click context menu '''
@@ -364,7 +363,6 @@ class ResearchQueryTool:
         ''' creates a drop-down context menu and binds it to the right click on the popup_treeview '''
         
         self.popup_tv_menu = Menu(self.popup_treeview, tearoff=0)
-        self.popup_tv_menu.add_command(label="Display Data", command=lambda: self.popup_tv_item())
         self.popup_tv_menu.add_command(label="Predict Value with Neural Network", command=lambda: threadit(self.nn_predict_selection))
         self.popup_tv_menu.add_command(label="Explain Neural Network Prediction", command=lambda: threadit(self.nn_explain_selection))
         self.popup_tv_menu.add_separator()
@@ -382,11 +380,7 @@ class ResearchQueryTool:
             self.popup_tv_menu.tk_popup(event.x_root, event.y_root, 0)
         finally:
             self.popup_tv_menu.grab_release()
-    
-    def popup_tv_item(self):
-        print (self.popup_treeview.item(self.popup_treeview_item)['values'])
-        #return self.popup_treeview.item(self.popup_treeview_item)['values']
-    
+
     def nn_predict_selection(self):
         ''' makes a prediction with the Neural Network model off the set of data currently right-clicked'''
         
