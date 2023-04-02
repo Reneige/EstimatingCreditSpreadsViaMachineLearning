@@ -244,8 +244,8 @@ print(f"\nThe Neural Network model predicted the z-spread with a st-dev of {accu
 #neural_network_model.save('./9-layer-576-top_model')
 
 ''' load'''
-#neural_network_model = load_model('./Results/9-layer-576-top_model')
-
+neural_network_model = load_model('./Results/9-layer-576-top_model')
+#
 
 
 ''' NOW lets employ a boosted regression tree model'''
@@ -346,16 +346,17 @@ feature_importance_plt = xgb.plot_importance(boosted_regression_tree_model)
 
 # Create a Lime explainer - more info here: https://www.kaggle.com/code/mirceavaman/explain-your-model-predictions-with-lime
 explainer = lime_tabular.LimeTabularExplainer(X_train, 
-                                                   feature_names=col_names,
-                                                  class_names=['ZSpread'],
-                                                  verbose=True, 
-                                                  mode='regression')
+                                              feature_names=col_names,
+                                              class_names=['ZSpread'],
+                                              verbose=True, 
+                                              mode='regression')
 
 
 observation=116
 
 exp = explainer.explain_instance(X_test[observation], neural_network_model.predict, num_features=25)
-#exp.save_to_file(f'nm_pred_X_test_{observation}.html', labels=None, predict_proba=True, show_predicted_value=True)
+html = exp.as_html(labels=None, predict_proba=True, show_predicted_value=True)
+exp.save_to_file(f'nm_pred_X_test_{observation}.html', labels=None, predict_proba=True, show_predicted_value=True)
 exp.as_list()
 plo = exp.as_pyplot_figure()
 

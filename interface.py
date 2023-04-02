@@ -9,7 +9,9 @@ bond markets. The tool is designed so that research data can be dropped into the
 and be immediately integrated into the dataset by clicking the 'Rebuild Database' menu from the Database 
 drop-down menu. Then the data can be browsed to ensure it is being captured correctly in the data model. 
 Finally, clicking the 'Generate Research Data Table' button will run all the required queries to build the 
-data set
+data set. The tool also now allows training Neural Networks and Gradient Boosted Regression trees from within
+the application. The results can then be audited using LIME and Eli5. The ML models can be saved and re-used for
+analysis at a later date. 
 
 """
 
@@ -363,8 +365,9 @@ class ResearchQueryTool:
         ''' creates a drop-down context menu and binds it to the right click on the popup_treeview '''
         
         self.popup_tv_menu = Menu(self.popup_treeview, tearoff=0)
-        self.popup_tv_menu.add_command(label="Predict Value with Neural Network", command=lambda: threadit(self.nn_predict_selection))
-        self.popup_tv_menu.add_command(label="Explain Neural Network Prediction", command=lambda: threadit(self.nn_explain_selection))
+        self.popup_tv_menu.add_command(label="Predict Value with Neural Network", command=lambda: self.nn_predict_selection())
+        self.popup_tv_menu.add_command(label="Explain Neural Network Prediction", command=lambda: self.nn_explain_selection())
+        self.popup_tv_menu.add_command(label="Explain Neural Network Prediction detailed", command=lambda: self.nn_explain_selection(html=True))
         self.popup_tv_menu.add_separator()
         self.popup_tv_menu.add_command(label="Predict Value with Gradient Boosted Trees", command=lambda: threadit(self.brt_predict_selection))
         self.popup_tv_menu.add_command(label="Explain Gradient Boosted Tree Prediction", command=lambda: self.brt_explain_selection()) # No Thread!
@@ -395,7 +398,7 @@ class ResearchQueryTool:
         y_predict = self.neural_network_model.predict(X_test)
         print(y_predict)
 
-    def nn_explain_selection(self):
+    def nn_explain_selection(self, html=False):
         ''' Explains the Neural Network prediction using LIME '''
             
         if self.neural_network_model is None:
@@ -423,15 +426,27 @@ class ResearchQueryTool:
                                                           class_names=['ZSpread'],
                                                           verbose=True, 
                                                           mode='regression')
-
-        # create explainer plot with Lime
-        exp = explainer.explain_instance(X_test,  self.neural_network_model.predict, num_features=features)
-        figure = exp.as_pyplot_figure()
-
+           
         # Create popup window
         inspection_popup = Toplevel()
         inspection_popup.title('LIME Explainer for NN Result')
         
+        if html == True:
+    
+            # Create HTML frame and push HTML data from LIME Explain object to HTMLLabel library to display
+            import tkinterweb
+            frame = tkinterweb.HtmlFrame(inspection_popup)
+            exp = explainer.explain_instance(X_test,  self.neural_network_model.predict, num_features=features)
+            htmldata = exp.as_html(labels=None, predict_proba=True, show_predicted_value=True)
+            frame.load_html(htmldata)
+            frame.pack()
+            return
+
+        else:
+            # create explainer plot with Lime
+            exp = explainer.explain_instance(X_test,  self.neural_network_model.predict, num_features=features)
+            figure = exp.as_pyplot_figure()            
+            
         # resize figure and set so all data fits
         figure.set_size_inches(10, 7)
         figure.tight_layout() 
