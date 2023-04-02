@@ -5,3 +5,4 @@ xlwings==0.24.9
 xgboost==1.7.3
 eli5==0.13.0
 lime==0.2.0.1
+tkinterweb==3.17.4

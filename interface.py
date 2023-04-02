@@ -39,6 +39,7 @@ class ResearchQueryTool:
         self.training_data = None
         self.neural_network_model = None
         self.boosted_regression_tree_model = None
+        self.feature_names = None
         
     ''' ------------------------------ GUI Methods  ----------------------------------'''
     
@@ -65,10 +66,15 @@ class ResearchQueryTool:
         self.label_file = LabelFrame(root, text="Control Panel")
         self.label_file.place(height=250, width=550, y=250)
 
-        self.epochs_label = Label(self.label_file, text="Number of Epochs for Neural Network: ").grid(row=0, column=3)
+        self.epochs_label = Label(self.label_file, text="Number of Epochs for Neural Network: ").grid(row=0, column=0)
         self.epochs = ttk.Combobox(self.label_file, values=[1,50,100,150,200,300,400,500,600,700,800])
         self.epochs.current(4)
-        self.epochs.grid(row=0, column=4)
+        self.epochs.grid(row=0, column=1)
+
+        self.estimators_label = Label(self.label_file, text="Number of Estimators for Boosted Regression Trees: ").grid(row=1, column=0)
+        self.estimators = ttk.Combobox(self.label_file, values=[500, 1000, 1500, 2000])
+        self.estimators.current(1)
+        self.estimators.grid(row=1, column=1)
         
 
     def generate_menu(self):
@@ -81,14 +87,16 @@ class ResearchQueryTool:
         self.datamenu = Menu(self.topmenu, tearoff=0)
         self.dbmenu = Menu(self.topmenu, tearoff=0)
         self.schema = Menu(self.dbmenu, tearoff=0)
-        self.modelmenu = Menu(self.topmenu, tearoff=0)
+        self.buildmodelmenu = Menu(self.topmenu, tearoff=0)
+        self.inspectmodelmenu = Menu(self.topmenu, tearoff=0)
         self.resultsmenu = Menu(self.topmenu, tearoff=0)
         
         # Add submenu cascade elements
         self.topmenu.add_cascade(label="File", menu=self.filemenu)
         self.topmenu.add_cascade(label="Data", menu=self.datamenu)
         self.topmenu.add_cascade(label="Database", menu=self.dbmenu)
-        self.topmenu.add_cascade(label="Build ML Model", menu=self.modelmenu)
+        self.topmenu.add_cascade(label="Build ML Model", menu=self.buildmodelmenu)
+        self.topmenu.add_cascade(label="Inspect ML Model", menu=self.inspectmodelmenu)
         self.topmenu.add_cascade(label="Research Results", menu=self.resultsmenu)
         
         # Add menu commands
@@ -128,13 +136,25 @@ class ResearchQueryTool:
         self.schema.add_command(label="Check VIX Schema", command=lambda: self.inspect_table('VIX'))
         self.schema.add_command(label="Check FTSE100 Schema", command=lambda: self.inspect_table('FTSE100'))
         self.schema.add_separator()
+        
+        # database menu items
         self.dbmenu.add_command(label="Rebuild Database", command=lambda: threadit(self.rebuild_database))
         self.dbmenu.add_command(label="Build Valuation Curve DB", command=lambda: threadit(self.build_valuation_curve_db))   
         self.dbmenu.add_command(label="Calculate Z-Spread Analytics", command=lambda: threadit(self.calc_zspread)) 
-        self.modelmenu.add_command(label="Build ML Training Data Set", command=lambda: threadit(self.build_research_dataset)) 
-        self.modelmenu.add_command(label="Grab Training Data from Clipboard", command=lambda: threadit(self.grab_data)) 
-        self.modelmenu.add_command(label="Train Neural Network", command=lambda: threadit(self.train_model_nn)) 
-        self.modelmenu.add_command(label="Train Gradient Boosted Trees", command=lambda: threadit(self.train_model_brt)) 
+        
+        # build model menu items
+        self.buildmodelmenu.add_command(label="Build ML Training Data Set", command=lambda: threadit(self.build_research_dataset)) 
+        self.buildmodelmenu.add_command(label="Grab Training Data from Clipboard", command=lambda: threadit(self.grab_data)) 
+        self.buildmodelmenu.add_command(label="Train Neural Network", command=lambda: threadit(self.train_model_nn)) 
+        self.buildmodelmenu.add_command(label="Train Gradient Boosted Trees", command=lambda: threadit(self.train_model_brt)) 
+        
+        # inspect model munu items
+        self.inspectmodelmenu.add_command(label="Inspect Neural Network Model Weights", command=lambda: threadit(self.inspect_nn)) 
+        self.inspectmodelmenu.add_separator()
+        self.inspectmodelmenu.add_command(label="Inspect Gradient Boosted Tree Model Weights", command=lambda: self.inspect_brt_weights()) 
+        self.inspectmodelmenu.add_command(label="Inspect Gradient Boosted Tree Model F-Score", command=lambda: self.inspect_brt_fscore()) 
+        
+        # results menu items
         self.resultsmenu.add_command(label="Browse Results", command=lambda: self.popup_tree(self.run_query('SELECT * FROM Results'), results_window=True))
 
         # Add menu to root window        
@@ -277,7 +297,11 @@ class ResearchQueryTool:
         chart_type = FigureCanvasTkAgg(fig, pop_up)
         chart_type.get_tk_widget().pack()
 
-    ''' ------------------------------ GUI Elements related to Pop-Up TreeView ----------------------------------'''
+
+
+    ''' ------------------ GUI Elements related to Pop-Up TreeView for browsing data or ML Training Results -----------------------'''
+
+
 
     def popup_tree(self, df, results_window=False):        
         ''' creates a pop-up window displaying the data contents of a dataframe with export to excel functionality 
@@ -323,7 +347,8 @@ class ResearchQueryTool:
         popup_submenu.add_command(label="test", command=lambda: self.popup_tv_item())
         pop_up.config(menu=popup_menu)
         
-        # this functionality is only triggered if viewing model results - allows for a right-click context menu
+        ''' NOTE Below functionality is only triggered if viewing model results - allows for a right-click context menu '''
+        
         if results_window == True:
             self.generate_popup_tv_drop_down_menu()
         
@@ -335,8 +360,12 @@ class ResearchQueryTool:
         
         self.popup_tv_menu = Menu(self.popup_treeview, tearoff=0)
         self.popup_tv_menu.add_command(label="Display Data", command=lambda: self.popup_tv_item())
-        self.popup_tv_menu.add_command(label="Predict Value with Neural Network", command=lambda: self.nn_predict_selection())
-
+        self.popup_tv_menu.add_command(label="Predict Value with Neural Network", command=lambda: threadit(self.nn_predict_selection))
+        self.popup_tv_menu.add_command(label="Explain Neural Network Prediction", command=lambda: threadit(self.nn_explain_selection))
+        self.popup_tv_menu.add_separator()
+        self.popup_tv_menu.add_command(label="Predict Value with Gradient Boosted Trees", command=lambda: threadit(self.brt_predict_selection))
+        self.popup_tv_menu.add_command(label="Explain Gradient Boosted Tree Prediction", command=lambda: self.brt_explain_selection()) # No Thread!
+        self.popup_tv_menu.add_separator()
 
     def popup_tv_context_menu(self, event):
         ''' captures the right-click event and sets the row clicked to item instance variable '''
@@ -354,19 +383,323 @@ class ResearchQueryTool:
         #return self.popup_treeview.item(self.popup_treeview_item)['values']
     
     def nn_predict_selection(self):
-        ''' makes a prediction with the Neural Network model off the set of data currently available '''
+        ''' makes a prediction with the Neural Network model off the set of data currently right-clicked'''
         
         if self.neural_network_model is None:
-            messagebox.showinfo(message='you must train or load a model before you can predict with it')
+            messagebox.showinfo(message='you must train or load a Neural Network model before you can predict with it')
             return
+        
+        # capture data from treeview - convert from string to float, insert into 3D numpy array (1,25), make prediction with NN
         data = self.popup_treeview.item(self.popup_treeview_item)['values'][0:25]
         data = list(map(float,data))
         X_test = np.array([data])
         y_predict = self.neural_network_model.predict(X_test)
         print(y_predict)
 
+    def nn_explain_selection(self):
+        ''' Explains the Neural Network prediction using LIME '''
+        
+        if self.neural_network_model is None:
+            messagebox.showinfo(message='you must train or load a Neural Network model before you can predict with it')
+            return
+        
+        # capture data from treeview, convert from string to float, insert into 3D numpy array (1,25) , explain with LIME
+        data = self.popup_treeview.item(self.popup_treeview_item)['values'][0:25]
+        data = list(map(float,data))
+        X_test = np.array([data])
+        y_predict = self.neural_network_model.predict(X_test)
+        print(y_predict)
 
-    ''' ------------------------------ Data Methods  ----------------------------------'''
+    def brt_predict_selection(self):
+        ''' makes a prediction with the Gradient Boosted Tree model off the set of data currently right-clicked '''
+        
+        if self.boosted_regression_tree_model is None:
+            messagebox.showinfo(message='you must train or load a Gradient Boosted Tree model before you can predict with it')
+            return
+        
+        # capture data from treeview, convert from string to float, insert into 3D numpy array (1,25),  make prediction with BRT
+        data = self.popup_treeview.item(self.popup_treeview_item)['values'][0:25]
+        data = list(map(float,data))
+        X_test = np.array([data])  
+        y_predict = self.boosted_regression_tree_model.predict(X_test)
+        print(y_predict)
+
+    def brt_explain_selection(self):
+        ''' Explains Gradient Boosted Tree model prediction using eli5  '''
+        
+        if self.boosted_regression_tree_model is None:
+            messagebox.showinfo(message='you must train or load a Gradient Boosted Tree model before you can predict with it')
+            return
+        
+
+        from eli5 import show_prediction
+        
+        # capture model number of features with attribute 'n_features_in_' so to slice input data to only capture that number        
+        features = self.boosted_regression_tree_model.n_features_in_
+        
+        #capture data from treeview - convert from string to float, insert into 2D numpy array (,25)
+        data = self.popup_treeview.item(self.popup_treeview_item)['values'][0:features]
+        data = list(map(float,data))
+        X_test = np.array(data) # 2D array = no []
+        
+
+        # Create popup window
+        prediction_popup = Toplevel()
+        prediction_popup.title('View Decision Tree')
+
+        # Create Eli5 prediction explanation HTML object
+        html_obj_pred = show_prediction(self.boosted_regression_tree_model, X_test, show_feature_values=True, feature_names=self.feature_names)
+
+
+        # TK Browser- Cannot be run in a thread - causes thread apartment error - consider implementing https://pypi.org/project/tkthread/
+        import tkinterweb
+        
+        # push HTML data from object (using .data attribute) to HTMLLabel library to display
+        frame = tkinterweb.HtmlFrame(prediction_popup)
+        frame.load_html(html_obj_pred.data)
+        frame.pack()
+        
+
+    def inspect_nn(self):
+        ''' Inspects the Neural Network model LIME '''
+        
+        if self.neural_network_model is None:
+            messagebox.showinfo(message='you must train or load a Neural Network model before you can predict with it')
+            return
+        
+        ''' UNDER CONSTRUCTION'''
+        pass 
+
+
+    def inspect_brt_weights(self):
+        ''' Inspects the Gradient Boosted Tree model with eli5  '''
+        
+        if self.boosted_regression_tree_model is None:
+            messagebox.showinfo(message='you must train or load a Gradient Boosted Tree model before you can predict with it')
+            return
+        
+        # Grab model weights from eli5
+        from eli5 import show_weights
+        html_obj_weights = show_weights(self.boosted_regression_tree_model, feature_names=self.feature_names, top=100)
+
+        # Create popup window
+        prediction_popup = Toplevel()
+        prediction_popup.title('View Gradient Boosted Regression Tree Weights')
+
+        # TK Browser- Cannot be run in a thread - causes thread apartment error - consider implementing https://pypi.org/project/tkthread/
+        import tkinterweb
+        
+        # push HTML data from object (using .data attribute) to HTMLLabel library to display
+        frame = tkinterweb.HtmlFrame(prediction_popup)
+        frame.load_html(html_obj_weights.data)
+        frame.pack()
+
+    def inspect_brt_fscore(self):
+        ''' Inspects the Gradient Boosted Tree F-Score '''
+        
+        if self.boosted_regression_tree_model is None:
+            messagebox.showinfo(message='you must train or load a Gradient Boosted Tree model before you can predict with it')
+            return
+        
+        # copies the brt object and renames features (copying because renaming the features in the instance variable can cause issues)
+        brt = self.boosted_regression_tree_model.copy()
+        brt.get_booster().feature_names = self.feature_names 
+                
+        # Create popup window
+        inspection_popup = Toplevel()
+        inspection_popup.title('View Gradient Boosted Regression Tree F-Score (number of occurrences in tree splits for any particular feature')
+        
+        # plot figure returns matplotlib.axes object. You need to call the .figure method to return a figure object which is what the 
+        # FigureCanvasTkAgg object requires to display it. I also adjust the size here
+        from xgboost import plot_importance
+        feature_importance = plot_importance(brt)
+        figure = feature_importance.figure
+        figure.set_size_inches(10, 7)
+        figure.tight_layout() # ensures no text is cut off
+        chart_type = FigureCanvasTkAgg(figure, inspection_popup)
+        chart_type.get_tk_widget().pack()
+
+
+
+    ''' ------------------------------------------------- ML Model Training / Saving Methods  ------------------------------------------------- '''
+
+
+
+    def grab_data(self):
+        ''' Reads ML model training data from clipboard '''
+        
+        self.training_data = pd.read_clipboard(sep='\\s+')
+        
+        # Move Calculated Z-Spread column to end by setting column to popped column
+        try:
+            self.training_data['Calculated_Zspread'] = self.training_data.pop('Calculated_Zspread')
+        except:
+            messagebox.showinfo(message="Warning! Your data must include the column 'Calculated_Zspread'. Did you grab headers?")
+            return
+        
+        print(f"Captured Dataframe with original dimension : {self.training_data.shape}")
+        self.training_data = self.training_data._get_numeric_data()
+        print(f"Dimension after dropping non-numeric data : {self.training_data.shape}")
+
+        # grab column names and store as features
+        self.feature_names = self.training_data.columns.tolist()
+        self.feature_names.pop()
+
+        from sklearn.model_selection import train_test_split
+        print("Running training")
+        
+        # get number of columns (including y-variable / labels) and drop NaN rows
+        self.number_of_columns = self.training_data.shape[1]
+        dataset = self.training_data.dropna(0) 
+        
+        # split into input X and output y variables
+        dataset = dataset.to_numpy()
+        
+        # capture training data by slicing out the x and the y
+        X = dataset[:,0: self.number_of_columns-1]
+        y = dataset[:, self.number_of_columns-1]
+        
+        # set to float type 
+        X = np.asarray(X).astype('float32')
+        y = np.asarray(y).astype('float32')
+        self.X_train, self.X_test, self.y_train, self.y_test = train_test_split(X, y, test_size=0.2, random_state=0)    
+        
+
+    def train_model_nn(self):
+        ''' Trains the neural network model and stores it as an instance variable '''
+        
+        # Check if training data is present
+        if self.training_data is None:
+            messagebox.showinfo(message="No Training Data! Capture it from Clipboard first")
+            return
+    
+        print("loading libraries")
+        from keras.models import Sequential
+        from keras.layers import Dense
+        from keras.metrics import MeanAbsoluteError
+
+        
+        # define a keras model of a FFNN with Nine Dense layers and size input based on columns - 1 (removing 1 for label column)
+        self.neural_network_model = Sequential()
+        self.neural_network_model.add(Dense(576, input_dim= self.number_of_columns-1, activation = 'relu'))
+        self.neural_network_model.add(Dense(288, activation = 'relu'))
+        self.neural_network_model.add(Dense(144, activation = 'relu'))
+        self.neural_network_model.add(Dense(72, activation = 'relu'))
+        self.neural_network_model.add(Dense(36, activation = 'relu'))
+        self.neural_network_model.add(Dense(18, activation='relu'))
+        self.neural_network_model.add(Dense(9, activation='relu'))
+        self.neural_network_model.add(Dense(3, activation='relu'))
+        self.neural_network_model.add(Dense(1,activation='linear'))
+
+        # compile model        
+        self.neural_network_model.compile(loss='mse', optimizer='adam', metrics=[MeanAbsoluteError()])
+        
+        # train model and store training history        
+        history = self.neural_network_model.fit(self.X_train, self.y_train, epochs=int(self.epochs.get()), batch_size=60, validation_split=0.25)
+        
+        # store model predictions on test data
+        self.y_predict_nn = self.neural_network_model.predict(self.X_test)
+
+        # send history to popup learning curve chart
+        self.popup_learning_curve(history)
+
+
+    def train_model_brt(self):
+        ''' Trains the gradient boosted trees model and stores it as an instance variable '''
+
+        # Check if training data is present
+        if self.training_data is None:
+            messagebox.showinfo(message="No Training Data! Capture it from Clipboard first")
+            return
+            
+        from xgboost import XGBRegressor
+      
+        # compile and train boosted regression tree model
+        self.boosted_regression_tree_model = XGBRegressor(n_estimators=int(self.estimators.get()), learning_rate=0.05, eval_metric='mae')
+        self.boosted_regression_tree_model.fit(self.X_train, self.y_train, eval_set=[(self.X_train, self.y_train), (self.X_test, self.y_test)], verbose=True)
+        
+        # store model predictions
+        self.y_predict_brt = self.boosted_regression_tree_model.predict(self.X_test)
+        
+        # create results dataframe
+        results = pd.DataFrame(self.X_test)
+        results.columns = self.feature_names
+        results['ACTUAL'] = self.y_test        
+        results['BRT PREDICTED'] = self.y_predict_brt
+        
+        # display results in pop-up window for exploration
+        threadit(self.popup_tree(results, results_window=True))
+        
+        
+    def save_nn_model(self):
+        ''' Allows the user to save a trained neural network to a folder '''
+        
+        if self.neural_network_model is None:
+            messagebox.showinfo(message='you must train a model before you can save it')
+            return
+        
+        folder = filedialog.askdirectory(initialdir="./Models/", title='Select Folder for Model to save')
+        
+        if folder is None: # asksaveasfile return `None` if dialog closed with "cancel".
+            return
+        
+        folder = folder+"/nn_model_"+str(datetime.date.today())
+        print(folder)
+        self.neural_network_model.save(folder)
+        
+    def load_nn_model(self):
+        ''' Allows the user to load a saved neural network for prediction '''
+        from keras.models import load_model
+        
+        folder_selected = filedialog.askdirectory(parent=root, initialdir="./Models/", title='Select the Folder with your saved Model')
+        
+        try:
+            self.neural_network_model = load_model(folder_selected)
+        except:
+            messagebox.showinfo(message=f'Error! No Keras Model found in {folder_selected}')
+
+    def save_brt_model(self):
+        ''' Allows the user to save a trained neural network to a folder '''
+        
+        if self.boosted_regression_tree_model is None:
+            messagebox.showinfo(message='you must train a model before you can save it')
+            return
+        
+        file = filedialog.asksaveasfilename(initialdir="./Models/", title='Save Gradient Boosted Tree Model As...', filetypes = [('Json File','*.json')])
+        
+        if file is None: # asksaveasfile return `None` if dialog closed with "cancel".
+            return
+        
+        # handling for file extension
+        if file[-4:] != 'json':
+            file = file+'.json'
+            
+        self.boosted_regression_tree_model.save_model(file)
+        
+        
+    def load_brt_model(self):
+        ''' Allows the user to load a saved neural network for prediction '''
+        import xgboost as xgb 
+
+        # ask for model file to load        
+        file = filedialog.askopenfile(initialdir="./Models/", title='Save Gradient Boosted Tree Model As...', filetypes = [('Json File','*.json')])
+        
+        if file:
+            filepath = os.path.abspath(file.name)
+        
+        try:
+            self.boosted_regression_tree_model = xgb.XGBRegressor()
+            self.boosted_regression_tree_model.load_model(filepath)
+        except:
+            messagebox.showinfo(message='Error! No XGBoost Model loaded')
+    
+
+    
+        
+    ''' ------------------------------------------------- Data Methods  ------------------------------------------------- '''
+
+
+
     
     def transpose(self, df):
         ''' returns a transposed dataframe with reset index'''
@@ -590,165 +923,10 @@ class ResearchQueryTool:
         data = self.merge_econ_data_by_date(data, sql.vix_usd)
         return data
 
-    def grab_data(self):
-        ''' Reads ML model training data from clipboard '''
-        
-        self.training_data = pd.read_clipboard(sep='\\s+')
-        
-        # Move Calculated Z-Spread column to end by setting column to popped column
-        try:
-            self.training_data['Calculated_Zspread'] = self.training_data.pop('Calculated_Zspread')
-        except:
-            messagebox.showinfo(message="Warning! Your data must include the column 'Calculated_Zspread'. Did you grab headers?")
-            return
-        
-        print(f"Captured Dataframe with original dimension : {self.training_data.shape}")
-        self.training_data = self.training_data._get_numeric_data()
-        print(f"Dimension after dropping non-numeric data : {self.training_data.shape}")
-
-        # grab column names and store as features
-        self.feature_names = self.training_data.columns.tolist()
-        self.feature_names.pop()
-
-        from sklearn.model_selection import train_test_split
-        print("Running training")
-        
-        # get number of columns (including y-variable / labels) and drop NaN rows
-        self.number_of_columns = self.training_data.shape[1]
-        dataset = self.training_data.dropna(0) 
-        
-        # split into input X and output y variables
-        dataset = dataset.to_numpy()
-        
-        # capture training data by slicing out the x and the y
-        X = dataset[:,0: self.number_of_columns-1]
-        y = dataset[:, self.number_of_columns-1]
-        
-        # set to float type 
-        X = np.asarray(X).astype('float32')
-        y = np.asarray(y).astype('float32')
-        self.X_train, self.X_test, self.y_train, self.y_test = train_test_split(X, y, test_size=0.2, random_state=0)    
-        
-
-    def train_model_nn(self):
-        ''' Trains the neural network model and stores it as an instance variable '''
-        
-        # Check if training data is present
-        if self.training_data is None:
-            messagebox.showinfo(message="No Training Data! Capture it from Clipboard first")
-            return
-    
-        print("loading libraries")
-        from keras.models import Sequential
-        from keras.layers import Dense
-        from keras.metrics import MeanAbsoluteError
-
-        
-        # define a keras model of a FFNN with Nine Dense layers and size input based on columns - 1 (removing 1 for label column)
-        self.neural_network_model = Sequential()
-        self.neural_network_model.add(Dense(576, input_dim= self.number_of_columns-1, activation = 'relu'))
-        self.neural_network_model.add(Dense(288, activation = 'relu'))
-        self.neural_network_model.add(Dense(144, activation = 'relu'))
-        self.neural_network_model.add(Dense(72, activation = 'relu'))
-        self.neural_network_model.add(Dense(36, activation = 'relu'))
-        self.neural_network_model.add(Dense(18, activation='relu'))
-        self.neural_network_model.add(Dense(9, activation='relu'))
-        self.neural_network_model.add(Dense(3, activation='relu'))
-        self.neural_network_model.add(Dense(1,activation='linear'))
-
-        # compile model        
-        self.neural_network_model.compile(loss='mse', optimizer='adam', metrics=[MeanAbsoluteError()])
-        
-        # train model and store training history        
-        history = self.neural_network_model.fit(self.X_train, self.y_train, epochs=int(self.epochs.get()), batch_size=60, validation_split=0.25)
-        
-        # store model predictions on test data
-        self.y_predict_nn = self.neural_network_model.predict(self.X_test)
-
-        # send history to popup learning curve chart
-        self.popup_learning_curve(history)
 
 
-    def train_model_brt(self):
-        ''' Trains the gradient boosted trees model and stores it as an instance variable '''
+    ''' ------------------------------------------------- Global Functions and Main App Loop  ------------------------------------------------- '''
 
-        # Check if training data is present
-        if self.training_data is None:
-            messagebox.showinfo(message="No Training Data! Capture it from Clipboard first")
-            return
-            
-        from xgboost import XGBRegressor
-      
-        # compile and train boosted regression tree model
-        self.boosted_regression_tree_model = XGBRegressor(n_estimators=1000, learning_rate=0.05, eval_metric='mae')
-        self.boosted_regression_tree_model.fit(self.X_train, self.y_train, eval_set=[(self.X_train, self.y_train), (self.X_test, self.y_test)], verbose=True)
-        
-        # store model predictions
-        self.y_predict_brt = self.boosted_regression_tree_model.predict(self.X_test)
-        
-    def save_nn_model(self):
-        ''' Allows the user to save a trained neural network to a folder '''
-        
-        if self.neural_network_model is None:
-            messagebox.showinfo(message='you must train a model before you can save it')
-            return
-        
-        folder = filedialog.askdirectory(initialdir="./Models/", title='Select Folder for Model to save')
-        
-        if folder is None: # asksaveasfile return `None` if dialog closed with "cancel".
-            return
-        
-        folder = folder+"/nn_model_"+str(datetime.date.today())
-        print(folder)
-        self.neural_network_model.save(folder)
-        
-    def load_nn_model(self):
-        ''' Allows the user to load a saved neural network for prediction '''
-        from keras.models import load_model
-        
-        folder_selected = filedialog.askdirectory(parent=root, initialdir="./Models/", title='Select the Folder with your saved Model')
-        
-        try:
-            self.neural_network_model = load_model(folder_selected)
-        except:
-            messagebox.showinfo(message=f'Error! No Keras Model found in {folder_selected}')
-
-    def save_brt_model(self):
-        ''' Allows the user to save a trained neural network to a folder '''
-        
-        if self.boosted_regression_tree_model is None:
-            messagebox.showinfo(message='you must train a model before you can save it')
-            return
-        
-        file = filedialog.asksaveasfilename(initialdir="./Models/", title='Save Gradient Boosted Tree Model As...', filetypes = [('Json File','*.json')])
-        
-        if file is None: # asksaveasfile return `None` if dialog closed with "cancel".
-            return
-        
-        # handling for file extension
-        if file[-4:] != 'json':
-            file = file+'.json'
-            
-        self.boosted_regression_tree_model.save_model(file)
-        
-        
-    def load_brt_model(self):
-        ''' Allows the user to load a saved neural network for prediction '''
-        import xgboost as xgb 
-
-        # ask for model file to load        
-        file = filedialog.askopenfile(initialdir="./Models/", title='Save Gradient Boosted Tree Model As...', filetypes = [('Json File','*.json')])
-        
-        if file:
-            filepath = os.path.abspath(file.name)
-        
-        # try loading model
-        btr = xgb.XGBRegressor()
-        try:
-            self.boosted_regression_tree_model = btr.load_model(filepath)
-        except:
-            messagebox.showinfo(message='Error! No XGBoost Model loaded')
-        
         
 
 def threadit(targ):

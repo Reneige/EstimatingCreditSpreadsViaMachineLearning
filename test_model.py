@@ -259,7 +259,7 @@ cv = RepeatedKFold(n_splits=10, n_repeats=3, random_state=1)
 scores = cross_val_score(boosted_regression_tree_model, X_train, y_train, scoring='neg_mean_absolute_error', cv=cv, n_jobs=-1)
 print('Mean Error: %.3f St-Dev (%.3f)' % (scores.mean(), scores.std()) )
 
-boosted_regression_tree_model.fit(X_train, y_train, eval_set=[(X_train, y_train), (X_test,y_test)], verbose=False)
+boosted_regression_tree_model.fit(X_train, y_train, eval_set=[(X_train, y_train), (X_test,y_test)])
 
 y_predict_brt = boosted_regression_tree_model.predict(X_test)
 
@@ -319,6 +319,11 @@ webbrowser.open(url2, new=2)
 #boosted_regression_tree_model = xgb.XGBRegressor()
 #boosted_regression_tree_model.load_model('./Results/apr1_brt_model.json')
 
+import xgboost
+test = r"C:\Users\Renea\Documents\University of Bath\13. Dissertation\EstimatingCreditSpreadsViaMachineLearning\Results\apr1_brt_model.json"
+brt = xgboost.XGBRegressor()
+brt.load_model(test)
+brt.n_features_in_
 
 ''' note once we override the feature_names we break the above show_prediction function so save model first'''
 # push feature_names into get_booster
