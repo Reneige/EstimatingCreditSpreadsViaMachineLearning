@@ -16,7 +16,7 @@ analysis at a later date.
 """
 
 
-from tkinter import Tk, ttk, LabelFrame, Button, Scrollbar, Toplevel, Menu, messagebox, Label, filedialog
+from tkinter import Tk, ttk, LabelFrame, Button, Scrollbar, Toplevel, Menu, messagebox, Label, filedialog, simpledialog, Button
 import pandas as pd
 import sqlite3
 import matplotlib.pyplot as plt
@@ -27,6 +27,7 @@ import numpy as np
 from sql import sql
 import datetime
 import os
+import pickle
 
 class ResearchQueryTool:
     def __init__(self, root):
@@ -108,11 +109,11 @@ class ResearchQueryTool:
         # Add menu commands
         self.filemenu.add_command(label="Export Bond List", command=lambda: new_excel(self.run_query(sql.mainview)))
         self.filemenu.add_separator()
-        self.filemenu.add_command(label="Save Neural Network Model", command=lambda: threadit(self.save_nn_model))
-        self.filemenu.add_command(label="Load Neural Network Model", command=lambda: threadit(self.load_nn_model))
+        self.filemenu.add_command(label="Save Neural Network Model", command=lambda: self.save_nn_model())
+        self.filemenu.add_command(label="Load Neural Network Model", command=lambda: self.load_nn_model())
         self.filemenu.add_separator()
-        self.filemenu.add_command(label="Save Gradient Boosted Tree Model", command=lambda: threadit(self.save_brt_model))
-        self.filemenu.add_command(label="Load Gradient Boosted Tree Model", command=lambda: threadit(self.load_brt_model))
+        self.filemenu.add_command(label="Save Gradient Boosted Tree Model", command=lambda: self.save_brt_model())
+        self.filemenu.add_command(label="Load Gradient Boosted Tree Model", command=lambda: self.load_brt_model())
         
         
         self.datamenu.add_command(label="Browse Price Data", command=lambda: self.display_table_data('Prices'))
@@ -131,7 +132,7 @@ class ResearchQueryTool:
         
         # add schema menu 
         self.dbmenu.add_cascade(label="Schema", menu=self.schema)
-        self.schema.add_command(label="Display Schema", command=lambda: self.popup_tree(self.run_query("SELECT * FROM sqlite_schema")))
+        self.schema.add_command(label="Display Schema", command=lambda: self.popup_tree(self.run_query(sql.schema)))
         self.schema.add_separator()
         self.schema.add_command(label="Check Master Schema", command=lambda: self.inspect_table('Master'))
         self.schema.add_command(label="Check Prices Schema", command=lambda: self.inspect_table('Prices'))
@@ -149,21 +150,21 @@ class ResearchQueryTool:
         self.dbmenu.add_command(label="Calculate Z-Spread Analytics", command=lambda: threadit(self.calc_zspread)) 
         
         # build model menu items - removed threading as that causes with ML model training and exploration and causes very slow TreeView loads
-        self.buildmodelmenu.add_command(label="Build ML Training Data Set", command=lambda: threadit(self.build_research_dataset)) 
+        self.buildmodelmenu.add_command(label="Build ML Training Data Set", command=lambda: threadit(new_excel(self.build_research_dataset()))) 
         self.buildmodelmenu.add_command(label="Grab Training Data from Clipboard", command=lambda: self.grab_data())
         self.buildmodelmenu.add_command(label="Display Training Data", command=lambda: self.display_data())
         self.buildmodelmenu.add_command(label="Train Neural Network", command=lambda: self.train_model_nn())
         self.buildmodelmenu.add_command(label="Train Gradient Boosted Trees", command=lambda: self.train_model_brt())
         
         # inspect model munu items
-        self.inspectmodelmenu.add_command(label="Inspect Neural Network Model Weights", command=lambda: threadit(self.inspect_nn)) 
+        self.inspectmodelmenu.add_command(label="Inspect Neural Network Model Weights", command=lambda: self.inspect_nn()) 
         self.inspectmodelmenu.add_separator()
         self.inspectmodelmenu.add_command(label="Inspect Gradient Boosted Tree Model Weights", command=lambda: self.inspect_brt_weights()) 
         self.inspectmodelmenu.add_command(label="Inspect Gradient Boosted Tree Model F-Score", command=lambda: self.inspect_brt_fscore()) 
         
         # results menu items
-        self.resultsmenu.add_command(label="Browse Results", command=lambda: self.popup_tree(self.run_query('SELECT * FROM Results'), results_window=True))
-
+        #self.resultsmenu.add_command(label="Browse Results", command=lambda: self.popup_tree(self.run_query('SELECT * FROM Results'), results_window=True))
+        self.resultsmenu.add_command(label="Browse Results", command=lambda: self.get_results())
         # Add menu to root window        
         self.root.config(menu=self.topmenu)
         
@@ -360,6 +361,12 @@ class ResearchQueryTool:
         
             # bind right-click to the context menu method
             self.popup_treeview.bind("<Button-3>", self.popup_tv_context_menu)
+            
+            # adds option to save results to database using the self.insert_to_db(df, db_table) - note I 
+            # inserted the text input dialog directly in the place of the db_table which is a bit cluttered but
+            # but shrinks the amount of code I need.
+            
+            popup_submenu.add_command(label="Save Results to DB", command=lambda: self.insert_to_db(df,simpledialog.askstring("Input", "Please Name these results (no special characters)", parent=self.root)))
 
     def generate_popup_tv_drop_down_menu(self):       
         ''' creates a drop-down context menu and binds it to the right click on the popup_treeview '''
@@ -402,11 +409,11 @@ class ResearchQueryTool:
         ''' Explains the Neural Network prediction using LIME '''
             
         if self.neural_network_model is None:
-            messagebox.showinfo(message='you must train a Neural Network model before you can predict with it')
+            messagebox.showinfo(message='You must train or Load a saved Neural Network model before you can predict with it')
             return
         
         if self.X_train is None:
-            messagebox.showinfo(message='Unfortunately this is currently only available on a freshly trained model, not a loaded model (because LIME requires access to x_train data)')
+            messagebox.showinfo(message='Error! No x_training data located. LIME requires access to x_train data')
             return
         
         # import lime ML model explainer library
@@ -569,6 +576,33 @@ class ResearchQueryTool:
         chart_type.get_tk_widget().pack()
 
 
+    def get_results(self):        
+        ''' creates a pop-up window allowing you to select saved results from ML training
+        '''
+        
+        # create popup window 
+        pop_up = Toplevel()
+        pop_up.title('data viewer')
+        pop_up.geometry("200x100")
+        
+        # get all tables in database in a list
+        results = self.run_query(sql.schema_tables)
+        results = results['name'].tolist()
+        remove = ['Master','Financials','Nominal_Curve','Inflation_Curve','GDP','VIX','FTSE100','Prices']
+        
+        # remove the system tables from the list
+        results = [x for x in results if x not in remove]
+        selection = ttk.Combobox(pop_up, values=results)
+        
+        def results():
+            table = selection.get()
+            df = self.run_query(f'SELECT * FROM {table}')
+            self.popup_tree(df, results_window=True)
+        
+        get_results_button = Button(pop_up, text="Get Results", command=lambda: results())
+        
+        selection.pack()
+        get_results_button.pack()
 
     ''' ------------------------------------------------- ML Model Training / Saving Methods  ------------------------------------------------- '''
 
@@ -581,9 +615,9 @@ class ResearchQueryTool:
         
         # Move Calculated Z-Spread column to end by setting column to popped column
         try:
-            self.training_data['Calculated_Zspread'] = self.training_data.pop('Calculated_Zspread')
+            self.training_data['Calculated_ZSpread'] = self.training_data.pop('Calculated_ZSpread')
         except:
-            messagebox.showinfo(message="Warning! Your data must include the column 'Calculated_Zspread'. Did you grab headers?")
+            messagebox.showinfo(message="Warning! Your data must include the column 'Calculated_ZSpread'. Did you grab headers?")
             return
         
         print(f"Captured Dataframe with original dimension : {self.training_data.shape}")
@@ -690,7 +724,7 @@ class ResearchQueryTool:
         results['BRT PREDICTED'] = self.y_predict_brt
 
         # Ask if they would like to explore results
-        if messagebox.askquestion('Browse Results?', 'Would you like to browse the test data results? - Can be slow to load',icon='warning'):
+        if messagebox.askquestion('Browse Results?', 'Would you like to browse the test data results?',icon='warning'):
             self.popup_tree(results, results_window=True)
         
         
@@ -706,9 +740,14 @@ class ResearchQueryTool:
         if folder is None: # asksaveasfile return `None` if dialog closed with "cancel".
             return
         
-        folder = folder+"/nn_model_"+str(datetime.date.today())
-        print(folder)
+        #nnfolder = folder+"/nn_model_"+str(datetime.date.today())
+        #print(nnfolder)
         self.neural_network_model.save(folder)
+        
+        # pickle the training data as it is required to audit ML model with LIME
+        with open(folder+'/x_train_data.dat', 'wb') as f:
+            pickle.dump(self.X_train, f)
+        
         
     def load_nn_model(self):
         ''' Allows the user to load a saved neural network for prediction '''
@@ -720,6 +759,9 @@ class ResearchQueryTool:
             self.neural_network_model = load_model(folder_selected)
         except:
             messagebox.showinfo(message=f'Error! No Keras Model found in {folder_selected}')
+            
+        with open(folder_selected+'/x_train_data.dat', 'rb') as f:
+            self.X_train = pickle.load(f)
 
     def save_brt_model(self):
         ''' Allows the user to save a trained neural network to a folder '''
@@ -985,6 +1027,7 @@ class ResearchQueryTool:
         data = self.merge_econ_data_by_date(data, sql.ftse_risk_return)
         data = self.merge_econ_data_by_date(data, sql.vix_usd)
         return data
+
 
 
 

@@ -20,6 +20,9 @@ class sql:
                        ON Master.ISIN = Prices.ISIN
                        ORDER BY Master.Issuer"""
     
+    # schema
+    schema = "SELECT * FROM sqlite_schema"
+    schema_tables = "SELECT name FROM sqlite_schema"
     
     # The below extract financial statement items and cast them to float/decimal using the above function
     # many of these do not retrieve much data and cause issues, so in the end I used much fewer in the final list 
