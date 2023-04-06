@@ -7,3 +7,4 @@ eli5==0.13.0
 lime==0.2.0.1
 tkinterweb==3.17.4
 openpyxl==3.0.9
+glob2==0.7
