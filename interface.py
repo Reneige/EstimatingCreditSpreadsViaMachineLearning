@@ -79,7 +79,7 @@ class ResearchQueryTool:
         self.epochs.grid(row=0, column=1)
 
         self.estimators_label = Label(self.label_file, text="Number of Estimators for Boosted Regression Trees: ").grid(row=1, column=0)
-        self.estimators = ttk.Combobox(self.label_file, values=[500, 1000, 1500, 2000])
+        self.estimators = ttk.Combobox(self.label_file, values=[100, 500, 1000, 2000, 3000, 4000, 5000, 6000, 7000, 8000])
         self.estimators.current(1)
         self.estimators.grid(row=1, column=1)
         
@@ -273,7 +273,7 @@ class ResearchQueryTool:
         pop_up.title('plot viewer')
         
         # Create and display plot. Add title
-        figure = plt.Figure(figsize=(10,5), dpi=100)
+        figure = plt.Figure(figsize=(12,6), dpi=100)
         ax = figure.add_subplot(111)
         chart_type = FigureCanvasTkAgg(figure, pop_up)
         chart_type.get_tk_widget().pack()
@@ -281,7 +281,7 @@ class ResearchQueryTool:
         ax.set_title(title)
 
     def popup_learning_curve(self, history):
-        ''' creates a pop-up window displaying training results '''
+        ''' creates a pop-up window displaying NN training results '''
         
         # Create popup window for plot
         pop_up = Toplevel()
@@ -292,6 +292,7 @@ class ResearchQueryTool:
         plt.plot(history.history['loss'], label='train loss')
         plt.plot(history.history['val_loss'], label='val loss')
         plt.legend()
+        plt.ylim([0,10000])
         plt.grid(True)
         plt.xlabel('epoch')
 
@@ -300,10 +301,31 @@ class ResearchQueryTool:
         plt.plot(history.history['val_mean_absolute_error'], label='val mae')
         plt.legend()
         plt.grid(True)
+        plt.ylim([0,60])
         plt.xlabel('epoch')
 
         chart_type = FigureCanvasTkAgg(fig, pop_up)
         chart_type.get_tk_widget().pack()
+
+    def popup_brt_learning_curve(self, results):
+        ''' creates a pop-up window displaying BRT training results '''
+        
+        # Create popup window for plot
+        pop_up = Toplevel()
+        pop_up.title('plot viewer')
+        
+        fig = plt.figure()
+        fig.add_subplot(1,1,1)
+        plt.plot(results['validation_0']['mae'], label='brt_train_mae')
+        plt.plot(results['validation_1']['mae'], label='brt_val_mae')
+        plt.legend()
+        plt.grid(True)
+        plt.xlabel('epochs / # estimators')
+
+        chart_type = FigureCanvasTkAgg(fig, pop_up)
+        chart_type.get_tk_widget().pack()
+
+
 
 
 
@@ -397,9 +419,11 @@ class ResearchQueryTool:
         if self.neural_network_model is None:
             messagebox.showinfo(message='you must train or load a Neural Network model before you can predict with it')
             return
+        # capture number of features for model for input
+        features = self.neural_network_model.input_shape[1]
         
         # capture data from treeview - convert from string to float, insert into 3D numpy array (1,25), make prediction with NN
-        data = self.popup_treeview.item(self.popup_treeview_item)['values'][0:25]
+        data = self.popup_treeview.item(self.popup_treeview_item)['values'][0:features]
         data = list(map(float,data))
         X_test = np.array([data])
         y_predict = self.neural_network_model.predict(X_test)
@@ -504,8 +528,13 @@ class ResearchQueryTool:
         prediction_popup.title('View Decision Tree')
 
         # Create Eli5 prediction explanation HTML object
-        html_obj_pred = show_prediction(self.boosted_regression_tree_model, X_test, show_feature_values=True, feature_names=self.feature_names)
-
+        try:
+            html_obj_pred = show_prediction(self.boosted_regression_tree_model, X_test, show_feature_values=True, feature_names=self.feature_names)
+        # reloading feature names seems to throw up an error! Very annoying and cant resolve.
+        except:
+            html_obj_pred = show_prediction(self.boosted_regression_tree_model, X_test, show_feature_values=True)
+            
+            
 
         # TK Browser- Cannot be run in a thread - causes thread apartment error - consider implementing https://pypi.org/project/tkthread/
         import tkinterweb
@@ -717,17 +746,42 @@ class ResearchQueryTool:
         # store model predictions
         self.y_predict_brt = self.boosted_regression_tree_model.predict(self.X_test)
         
+        evalresults = self.boosted_regression_tree_model.evals_result()
+        
+        self.popup_brt_learning_curve(evalresults)
+        
         # create results dataframe
         results = pd.DataFrame(self.X_test)
         results.columns = self.feature_names
         results['ACTUAL'] = self.y_test        
         results['BRT PREDICTED'] = self.y_predict_brt
+        
+        
 
         # Ask if they would like to explore results
         if messagebox.askquestion('Browse Results?', 'Would you like to browse the test data results?',icon='warning'):
             self.popup_tree(results, results_window=True)
+
+    def pack_training_data(self):
+        ''' stores training and testing data in a 5-element list as a pickle with saved models for later retrieval '''
         
+        data_items = [self.feature_names,
+                      self.X_train,
+                      self.X_test,
+                      self.y_train,
+                      self.y_test]
         
+        return data_items
+
+    def retrieve_training_data(self, data_items):
+        ''' retrieves training and testing data from a 5-element list that is pickled with models '''
+        
+        self.feature_names = data_items[0]
+        self.X_train = data_items[1]
+        self.X_test = data_items[2]
+        self.y_train = data_items[3]
+        self.y_test = data_items[4]
+             
     def save_nn_model(self):
         ''' Allows the user to save a trained neural network to a folder '''
         
@@ -740,14 +794,14 @@ class ResearchQueryTool:
         if folder is None: # asksaveasfile return `None` if dialog closed with "cancel".
             return
         
-        #nnfolder = folder+"/nn_model_"+str(datetime.date.today())
-        #print(nnfolder)
+        # save keras model in a folder
         self.neural_network_model.save(folder)
         
         # pickle the training data as it is required to audit ML model with LIME
         with open(folder+'/x_train_data.dat', 'wb') as f:
-            pickle.dump(self.X_train, f)
-        
+            pickle.dump(self.pack_training_data(), f)
+    
+
         
     def load_nn_model(self):
         ''' Allows the user to load a saved neural network for prediction '''
@@ -761,7 +815,10 @@ class ResearchQueryTool:
             messagebox.showinfo(message=f'Error! No Keras Model found in {folder_selected}')
             
         with open(folder_selected+'/x_train_data.dat', 'rb') as f:
-            self.X_train = pickle.load(f)
+            data_items = pickle.load(f)
+        
+        #reload training and testing data
+        self.retrieve_training_data(data_items)
 
     def save_brt_model(self):
         ''' Allows the user to save a trained neural network to a folder '''
@@ -781,6 +838,10 @@ class ResearchQueryTool:
             
         self.boosted_regression_tree_model.save_model(file)
         
+        # pickle the training data as it is required to audit ML model with LIME
+        with open(file[:-5]+'.dat', 'wb') as f:
+            pickle.dump(self.pack_training_data(), f)
+        
         
     def load_brt_model(self):
         ''' Allows the user to load a saved neural network for prediction '''
@@ -797,9 +858,14 @@ class ResearchQueryTool:
             self.boosted_regression_tree_model.load_model(filepath)
         except:
             messagebox.showinfo(message='Error! No XGBoost Model loaded')
-    
-
-    
+            
+        print(filepath[:-5]+'.dat')
+        # pickle the training data as it is required to audit ML model with LIME
+        with open(filepath[:-5]+'.dat', 'rb') as f:
+            data_items = pickle.load(f)    
+        
+        #reload training and testing data
+        self.retrieve_training_data(data_items)     
         
     ''' ------------------------------------------------- Data Methods  ------------------------------------------------- '''
 

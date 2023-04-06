@@ -15,7 +15,6 @@ from keras.metrics import MeanSquaredError, MeanAbsoluteError
 from sklearn.model_selection import train_test_split
 import matplotlib.pyplot as plt
 import pandas as pd
-import seaborn as sns
 import numpy as np
 import xgboost as xgb
 from xgboost import XGBRegressor, plot_tree
@@ -39,8 +38,8 @@ from lime import lime_tabular
 
 # load the dataset
 #dataset1 = pd.read_excel('training_set_feb12.xlsx')
-dataset1 = pd.read_excel('../training_set_apr1.xlsx')
-dataset1 = dataset1.dropna(0) 
+dataset1 = pd.read_excel(r'./Results Apr6-2023/Final Training-Testing Data Columns Y-AU.xlsx')
+#dataset1 = dataset1.dropna(0) 
 # split into input X and output y variables
 dataset= dataset1.to_numpy()
 
@@ -48,8 +47,8 @@ dataset= dataset1.to_numpy()
 col_names = dataset1.columns.tolist()
 col_names.pop()
 
-X = dataset[:,0:25]
-y = dataset[:,25]
+X = dataset[:,24:46]
+y = dataset[:,46]
 
 
 # testing effects of standardizing
@@ -86,7 +85,7 @@ y = np.asarray(y).astype('float32')
 # test_size = 0.2 means 20% examples are used for test.
 """
 
-X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=0)
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=5)
 
 
 """
@@ -107,7 +106,7 @@ mean 0 and unit variance. The network would then be trained on a more stable dis
 # define a keras model of a MLP network with three Dense layers
 neural_network_model = Sequential()
 
-neural_network_model.add(Dense(576, input_dim=25, activation = 'relu'))
+neural_network_model.add(Dense(576, input_dim=22, activation = 'relu'))
 neural_network_model.add(Dense(288, activation = 'relu'))
 
 neural_network_model.add(Dense(144, activation = 'relu'))
@@ -254,10 +253,10 @@ neural_network_model = load_model('./Results/9-layer-576-top_model')
 boosted_regression_tree_model = XGBRegressor(n_estimators=1000, learning_rate=0.05, eval_metric='mae')
 
 # cross validation with SKLearn - Repeats K-Fold n times with different randomisation in each repetition.
-cv = RepeatedKFold(n_splits=10, n_repeats=3, random_state=1)
+#cv = RepeatedKFold(n_splits=10, n_repeats=3, random_state=1)
 
-scores = cross_val_score(boosted_regression_tree_model, X_train, y_train, scoring='neg_mean_absolute_error', cv=cv, n_jobs=-1)
-print('Mean Error: %.3f St-Dev (%.3f)' % (scores.mean(), scores.std()) )
+#scores = cross_val_score(boosted_regression_tree_model, X_train, y_train, scoring='neg_mean_absolute_error', cv=cv, n_jobs=-1)
+#print('Mean Error: %.3f St-Dev (%.3f)' % (scores.mean(), scores.std()) )
 
 boosted_regression_tree_model.fit(X_train, y_train, eval_set=[(X_train, y_train), (X_test,y_test)])
 
@@ -271,7 +270,7 @@ print("St-Dev of error: " + str((y_predict_brt - y_test).std()))
 print(f"The model's estimation coefficient of determination (R2 - R Squared) is: {brt_r2}")
 
 
-pl = plot_tree(boosted_regression_tree_model)
+#pl = plot_tree(boosted_regression_tree_model)
 
 
 # plot training results - requires setting eval_set in model fitting
