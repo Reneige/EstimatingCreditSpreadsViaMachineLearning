@@ -84,6 +84,20 @@ class sql:
                 sql.debtequity,
                 sql.cash]
 
+    def select_financials():
+        return [sql.cashflow, 
+                sql.debt, 
+                sql.assets, 
+                sql.income]
+    
+    def select_ratos():
+        return [sql.intcover, 
+                sql.debtequity, 
+                sql.debtcapital, 
+                sql.debtassets, 
+                sql.wcta, 
+                sql.current]
+    
     # All the below are economic data items: yields, inflation, gdp, ftse stdev/returns and VIX returns in usd.
     nominal_yield_1yr = 'SELECT Date, "1yr" AS "1yr_nominal_gov_yield" FROM Nominal_Curve'
     nominal_yield_3yr = 'SELECT Date, "3yr" AS "3yr_nominal_gov_yield" FROM Nominal_Curve'

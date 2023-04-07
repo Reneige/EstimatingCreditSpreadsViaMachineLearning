@@ -355,13 +355,14 @@ class ResearchQueryTool:
         self.popup_menu.add_separator()
         self.popup_menu.add_command(
             label="View Bond Info", 
-            command=lambda: self.popup_tree(
-            self.transpose(self.run_query(f"SELECT * FROM Master WHERE ISIN = '{self.ISIN()}'")))
+            command=lambda: self.popup_tree(self.transpose(self.run_query(
+                f"SELECT * FROM Master WHERE ISIN = '{self.ISIN()}'")))
             )
         self.popup_menu.add_separator()
         self.popup_menu.add_command(
             label="Browse Price Data", 
-            command=lambda: self.popup_tree(self.run_query(f"SELECT * FROM Prices WHERE ISIN = '{self.ISIN()}' ORDER BY Date ASC"))
+            command=lambda: self.popup_tree(
+                self.run_query(f"SELECT * FROM Prices WHERE ISIN = '{self.ISIN()}' ORDER BY Date ASC"))
             )
 
         # create cascading menu - FINANCIALS
@@ -371,14 +372,13 @@ class ResearchQueryTool:
         # create cascading menu - single items
         self.key_items = Menu(self.fins_menu, tearoff=0)
 
-        # A note on the below - these are mostly for testing whether the queries I need to build my research
-        # Data set are working. They are not designed for readability. Sorry!
+        # The below queries are for testing whether I can build a research data set that links bond prices
+        # to their underlying company financial data
 
         # Add FINANCIALS Submenu
         self.fins_menu.add_command(
             label="Browse Financial Summary Data", 
-            command=lambda: 
-                self.popup_tree(self.query_financials_by_isin("*", self.ISIN(), "Financial-Summary"))
+            command=lambda: self.popup_tree(self.query_financials_by_isin("*", self.ISIN(), "Financial-Summary"))
                 )
         self.fins_menu.add_command(
             label="Browse Income Statement Data", 
@@ -400,33 +400,34 @@ class ResearchQueryTool:
         self.fins_menu.add_cascade(label="Key Items", menu=self.key_items)
         self.fins_menu.add_separator()
         
-        self.fins_menu.add_command(
-            label="Cash and Debt", 
-            command=lambda: self.popup_tree(self.merge_financial_item_by_isin(sql.cashflow, sql.debt, self.ISIN()))
-            )
+
         self.fins_menu.add_separator()
         self.fins_menu.add_command(
             label="Cash, Debt, Income, Asset", 
-            command=lambda: self.popup_tree(self.recursive_merge_financials_by_isin([sql.cashflow, sql.debt, sql.assets, sql.income], self.ISIN(), 0))
+            command=lambda: self.popup_tree(self.recursive_merge_financials_by_isin(
+                sql.select_financials(), self.ISIN(), 0))
             )
         self.fins_menu.add_command(
             label="Ratios", 
             command=lambda: self.popup_tree(self.recursive_merge_financials_by_isin(
-            [sql.intcover, sql.debtequity, sql.debtcapital, sql.debtassets, sql.wcta, sql.current], self.ISIN(), 0))
+                sql.select_ratos(), self.ISIN(), 0))
             )
         self.fins_menu.add_command(
             label="Key Financials", 
             command=lambda: self.popup_tree(
-            self.recursive_merge_financials_by_isin(sql.key_fins_queries(), self.ISIN(), 0))
+            self.recursive_merge_financials_by_isin(
+                sql.key_fins_queries(), self.ISIN(), 0))
             )
         self.fins_menu.add_command(
             label="Prices Merged", 
             command=lambda: self.popup_tree(self.merge_prices(
-            self.recursive_merge_financials_by_isin(sql.key_fins_queries(), self.ISIN(), 0), self.ISIN()))
+            self.recursive_merge_financials_by_isin(
+                sql.key_fins_queries(), self.ISIN(), 0), self.ISIN()))
             )
         self.fins_menu.add_command(
             label="Static Bond Data Added", 
-            command=lambda: self.popup_tree(self.add_static_bond_data(self.recursive_merge_financials_by_isin(sql.key_fins_queries(), self.ISIN(), 0), 'SeniorityType', self.ISIN()))
+            command=lambda: self.popup_tree(self.add_static_bond_data(self.recursive_merge_financials_by_isin(
+                sql.key_fins_queries(), self.ISIN(), 0), 'SeniorityType', self.ISIN()))
             )
         self.fins_menu.add_separator()
         self.fins_menu.add_command(
@@ -1219,17 +1220,11 @@ class ResearchQueryTool:
 
         return self.run_clean_query(query)
 
-    def merge_financial_item_by_isin(self, item, item2, isin):
+    def recursive_merge_financials_by_isin(self, list_of_items, isin, month_shift):
         ''' Note: The raw research data is parsed in an unstructured manner and so does not have dates as a 
             primary key which results in duplication of dates when multiple items are queried. 
-            To get around this, I have merged the dataframes by date
-        '''
-        df1 = self.query_item_by_isin(item, isin, 0)
-        df2 = self.query_item_by_isin(item2, isin, 0)
-        return df1.merge(df2, on='Date')
-
-    def recursive_merge_financials_by_isin(self, list_of_items, isin, month_shift):
-        ''' recursively merges data through queries stored in a list - must be outer merge or a single blank query breaks process'''
+            To get around this, I have merged the dataframes by date and recursively merge the data from a 
+            list of queries. Merges must be 'outer' merge or a single blank query breaks the process'''
 
         df = self.query_item_by_isin(list_of_items.pop(), isin, month_shift)
         if len(list_of_items) > 0:
