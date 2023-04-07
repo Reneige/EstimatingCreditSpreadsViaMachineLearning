@@ -3,11 +3,18 @@
 Created on Thu Mar 30 21:24:30 2023
 
 @author: Rene Alby
+
+
+
+Note all SQL is all hosted locally via SQLite so there is no risk of injection attack. 
+
+The SQL Database is produced by parsing and formatting doanloaded data files in the data_aggregator.py code
+
 """
 
 
 class sql:
-    ''' A class for storing useful SQL queries'''
+    ''' A class for storing useful SQL queries '''
 
     # simple function to enrich a financial query by casting data stored as text to decimal form, and then renaming the column
     def tonumeric(fin_item):

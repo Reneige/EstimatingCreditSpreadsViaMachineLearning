@@ -13,10 +13,12 @@ data set. The tool also now allows training Neural Networks and Gradient Boosted
 the application. The results can then be audited using LIME and Eli5. The ML models can be saved and re-used for
 analysis at a later date. 
 
+Note all SQL is all hosted locally via SQLite so there is no risk of injection attack
+
 """
 
 
-from tkinter import Tk, ttk, LabelFrame, Button, Scrollbar, Toplevel, Menu, messagebox, Label, filedialog, simpledialog, Button
+from tkinter import Tk, ttk, LabelFrame, Button, Scrollbar, Toplevel, Menu, messagebox, Label, filedialog, simpledialog
 import pandas as pd
 import sqlite3
 import matplotlib.pyplot as plt
@@ -325,6 +327,7 @@ class ResearchQueryTool:
             command=lambda: self.get_results()
             )
         
+        
         # Add menu to root window
         self.root.config(menu=self.topmenu)
 
@@ -333,6 +336,9 @@ class ResearchQueryTool:
 
 
     # <<< ------------- RIGHT CLICK POPUP MENU ------------- >>>
+
+    
+    
     def generate_drop_down_menu(self):
         ''' creates a right-click drop-down context menu and binds it to the  bond viewew / treeview '''
         
@@ -910,12 +916,14 @@ class ResearchQueryTool:
         # remove the system tables from the list
         results = [x for x in results if x not in remove]
         selection = ttk.Combobox(pop_up, values=results)
-
+        
+        # gets the database table from the drop-down selection, extracts data and displays in popop_tree()
         def results():
-            table = selection.get()
-            df = self.run_query(f'SELECT * FROM {table}')
+            db_table = selection.get()
+            df = self.run_query(f'SELECT * FROM {db_table}')
             self.popup_tree(df, results_window=True)
-
+        
+        # links the above function to the button 'get results'
         get_results_button = Button(
             pop_up, text="Get Results", command=lambda: results())
 
