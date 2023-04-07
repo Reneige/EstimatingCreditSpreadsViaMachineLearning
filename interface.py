@@ -2,7 +2,7 @@
 """
 Created on Sun Jan 29 20:55:44 2023
 
-@author: Rene Alby
+@author: Rene Alby 
 
 The purpose of this tool is to aggregate data for research in machine learning applications in corporate 
 bond markets. The tool is designed so that research data can be dropped into the './data/GBP Bonds' subfolder 
