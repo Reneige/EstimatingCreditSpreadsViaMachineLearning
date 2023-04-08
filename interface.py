@@ -603,7 +603,15 @@ class ResearchQueryTool:
         chart_type = FigureCanvasTkAgg(fig, pop_up)
         chart_type.get_tk_widget().pack()
 
+
+
+
+
     ''' ------------------ GUI Elements related to Pop-Up TreeView for browsing data or ML Training Results -----------------------'''
+
+
+
+
 
     def popup_tree(self, df, results_window=False):
         ''' creates a pop-up window displaying the data contents of a dataframe with export to excel functionality 
@@ -647,7 +655,7 @@ class ResearchQueryTool:
         # Create Export Menu
         popup_menu = Menu(pop_up, tearoff=0)
         popup_submenu = Menu(popup_menu, tearoff=0)
-        popup_menu.add_cascade(label="Export Data", menu=popup_submenu)
+        popup_menu.add_cascade(label="Data", menu=popup_submenu)
         popup_submenu.add_command(
             label="Export to Excel", command=lambda: new_excel(df))
         pop_up.config(menu=popup_menu)
@@ -937,15 +945,6 @@ class ResearchQueryTool:
 
         self.training_data = pd.read_clipboard(sep='\\s+')
 
-        # Move Calculated Z-Spread column to end by setting column to popped column
-        try:
-            self.training_data['Calculated_ZSpread'] = self.training_data.pop(
-                'Calculated_ZSpread')
-        except:
-            messagebox.showinfo(
-                message="Warning! Your data must include the column 'Calculated_ZSpread'. Did you grab headers?")
-            return
-
         print(
             f"Captured Dataframe with original dimension : {self.training_data.shape}")
         self.training_data = self.training_data._get_numeric_data()
@@ -1028,9 +1027,8 @@ class ResearchQueryTool:
         results['ACTUAL'] = self.y_test
         results['NN PREDICTED'] = self.y_predict_nn
 
-        # Ask if they would like to explore results
-        if messagebox.askquestion('Browse Results?', 'Would you like to browse the test data results?', icon='warning'):
-            self.popup_tree(results, results_window=True)
+        # Display Results
+        self.popup_tree(results, results_window=True)
 
     def train_model_brt(self):
         ''' Trains the gradient boosted trees model and stores it as an instance variable '''
@@ -1063,9 +1061,8 @@ class ResearchQueryTool:
         results['ACTUAL'] = self.y_test
         results['BRT PREDICTED'] = self.y_predict_brt
 
-        # Ask if they would like to explore results
-        if messagebox.askquestion('Browse Results?', 'Would you like to browse the test data results?', icon='warning'):
-            self.popup_tree(results, results_window=True)
+        # Display Results
+        self.popup_tree(results, results_window=True)
 
     def pack_training_data(self):
         ''' stores training and testing data in a 5-element list as a pickle with saved models for later retrieval '''
