@@ -38,7 +38,7 @@ from lime import lime_tabular
 
 # load the dataset
 #dataset1 = pd.read_excel('training_set_feb12.xlsx')
-dataset1 = pd.read_excel(r'./Results Apr6-2023/Final Training-Testing Data Columns Y-AU.xlsx')
+dataset1 = pd.read_excel(r'C:\Users\Renea\EstimatingCreditSpreadsViaMachineLearning\Results April 8 2023\Final Training-Testing Data Columns Y-AU.xlsx')
 #dataset1 = dataset1.dropna(0) 
 # split into input X and output y variables
 dataset= dataset1.to_numpy()
@@ -75,11 +75,20 @@ for i in range(5):
 X = np.asarray(X).astype('float32')
 y = np.asarray(y).astype('float32')
 
+import seaborn as sns
 
-#cols = d1.columns
-#plot = sns.pairplot(d1[cols], height = 2.5)
-#plt.show();
-    
+data = dataset1.iloc[:,24:47]
+cols = data.columns.tolist()
+cols.pop()
+for xvar in cols:
+    print(xvar)
+    df = data[[xvar,'Calculated_ZSpread']]
+#    plot = sns.pairplot(df, height = 2.5)
+ #   plot = sns.scatterplot(df)
+    plot = sns.relplot(df, x=xvar,y='Calculated_ZSpread')
+    plot.savefig(xvar+".png")
+
+
 """   
 # split them into training set and test set by using the train_test_split( ) method from sklearn. 
 # test_size = 0.2 means 20% examples are used for test.

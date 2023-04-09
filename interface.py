@@ -326,6 +326,11 @@ class ResearchQueryTool:
             label="Browse Results", 
             command=lambda: self.get_results()
             )
+        # results menu commands
+        self.resultsmenu.add_command(
+            label="View DATA", 
+            command=lambda: self.test()
+            )
         
         
         # Add menu to root window
@@ -610,8 +615,12 @@ class ResearchQueryTool:
     ''' ------------------ GUI Elements related to Pop-Up TreeView for browsing data or ML Training Results -----------------------'''
 
 
-
-
+    def test(self):
+        print(type(self.X_train))
+        print(type(self.X_test))
+        print(type(self.y_train))
+        print(type(self.y_test))
+        
 
     def popup_tree(self, df, results_window=False):
         ''' creates a pop-up window displaying the data contents of a dataframe with export to excel functionality 
@@ -811,7 +820,7 @@ class ResearchQueryTool:
                 message='you must train or load a Gradient Boosted Tree model before you can predict with it')
             return
 
-        from eli5 import explain_prediction
+        from eli5 import show_prediction
 
         # capture model number of features with attribute 'n_features_in_' so to slice input data to only capture that number
         features = self.boosted_regression_tree_model.n_features_in_
@@ -828,11 +837,11 @@ class ResearchQueryTool:
 
         # Create Eli5 prediction explanation HTML object
         try:
-            html_obj_pred = explain_prediction(
+            html_obj_pred = show_prediction(
                 self.boosted_regression_tree_model, X_test, show_feature_values=True, feature_names=self.feature_names)
         # reloading feature names seems to throw up an error! Very annoying and cant resolve.
         except:
-            html_obj_pred = explain_prediction(
+            html_obj_pred = show_prediction(
                 self.boosted_regression_tree_model, X_test, show_feature_values=True)
 
         # TK Browser- Cannot be run in a thread - causes thread apartment error - consider implementing https://pypi.org/project/tkthread/
