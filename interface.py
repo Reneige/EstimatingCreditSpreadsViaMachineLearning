@@ -326,11 +326,6 @@ class ResearchQueryTool:
             label="Browse Results", 
             command=lambda: self.get_results()
             )
-        # results menu commands
-        self.resultsmenu.add_command(
-            label="View DATA", 
-            command=lambda: self.test()
-            )
         
         
         # Add menu to root window
@@ -615,12 +610,6 @@ class ResearchQueryTool:
     ''' ------------------ GUI Elements related to Pop-Up TreeView for browsing data or ML Training Results -----------------------'''
 
 
-    def test(self):
-        print(type(self.X_train))
-        print(type(self.X_test))
-        print(type(self.y_train))
-        print(type(self.y_test))
-        
 
     def popup_tree(self, df, results_window=False):
         ''' creates a pop-up window displaying the data contents of a dataframe with export to excel functionality 
