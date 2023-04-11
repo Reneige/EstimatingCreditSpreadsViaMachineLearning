@@ -77,9 +77,18 @@ y = np.asarray(y).astype('float32')
 
 import seaborn as sns
 
+data = pd.read_excel(r"C:\Users\Renea\EstimatingCreditSpreadsViaMachineLearning\Results April7-2023\Results.xlsx")
+data2 =  data[['ACTUAL','NN PREDICTED', 'BRT PREDICTED']]
+plot = sns.pairplot(data2, height = 2.5)
+plot = sns.relplot(data2, x='ACTUAL',y='BRT PREDICTED')
+
+plot = sns.displot(data2, x="NN PREDICTED")
+
 data = dataset1.iloc[:,24:47]
 cols = data.columns.tolist()
 cols.pop()
+'''
+#THE Below generates scatter plots of all the above DFs
 for xvar in cols:
     print(xvar)
     df = data[[xvar,'Calculated_ZSpread']]
@@ -87,6 +96,9 @@ for xvar in cols:
  #   plot = sns.scatterplot(df)
     plot = sns.relplot(df, x=xvar,y='Calculated_ZSpread')
     plot.savefig(xvar+".png")
+'''
+
+
 
 
 """   
@@ -160,10 +172,58 @@ this validation set at the end of each epoch, which is very useful to see how we
 #es_callback = EarlyStopping(monitor='val_loss', min_delta=0.0001, patience=5, restore_best_weights=True)
 
 # train the model = batch size refers to mini batches for training
-history = neural_network_model.fit(X_train,y_train, epochs=800, batch_size=128, validation_split=0.25)
+history = neural_network_model.fit(X_train,y_train, epochs=100, batch_size=128, validation_split=0.25)
 
 
 
+
+
+
+def create_model():
+
+    neural_network_model = Sequential()
+    
+    neural_network_model.add(Dense(576, input_dim=22, activation = 'relu'))
+    neural_network_model.add(Dense(288, activation = 'relu'))
+    
+    neural_network_model.add(Dense(144, activation = 'relu'))
+    #neural_network_model.add(BatchNormalization())
+    neural_network_model.add(Dense(72, activation = 'relu'))
+    #neural_network_model.add(BatchNormalization())
+    neural_network_model.add(Dense(36, activation = 'relu'))
+    #neural_network_model.add(BatchNormalization())
+    neural_network_model.add(Dense(18, activation='relu'))
+    #neural_network_model.add(BatchNormalization())
+    neural_network_model.add(Dense(9, activation='relu'))
+    #neural_network_model.add(BatchNormalization())
+    neural_network_model.add(Dense(3, activation='relu'))
+    #neural_network_model.add(BatchNormalization())
+    neural_network_model.add(Dense(1,activation='linear'))
+    neural_network_model.compile(loss='mse', optimizer=Adam(), metrics=[MeanAbsoluteError()])
+    return neural_network_model
+
+
+
+
+
+
+
+from keras.wrappers.scikit_learn import KerasClassifier, KerasRegressor
+import eli5
+from eli5.sklearn import PermutationImportance
+
+
+
+my_model = KerasRegressor(build_fn=create_model, epochs=800, batch_size=128)    
+my_model.fit(X_train,y_train)
+perm = PermutationImportance(my_model, random_state=1).fit(X_test,y_test)
+
+
+html_obj = eli5.show_weights(perm, feature_names = col_names2, top=100)
+
+# Write html object to a file (adjust file path; Windows path is used here)
+with open('NN_eli_permutations_test_data.htm','wb') as f:
+    f.write(html_obj.data.encode("UTF-8"))
 
 """
 Note that the call to model.fit() returns a history object. This history object contains a member history, which is a 

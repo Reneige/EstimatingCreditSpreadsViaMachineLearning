@@ -8,3 +8,4 @@ lime==0.2.0.1
 tkinterweb==3.17.4
 openpyxl==3.0.9
 glob2==0.7
+shap==0.41.0

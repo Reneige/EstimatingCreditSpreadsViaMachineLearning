@@ -853,15 +853,42 @@ class ResearchQueryTool:
         frame.pack()
 
     def inspect_nn(self):
-        ''' Inspects the Neural Network model LIME '''
+        ''' Inspects the Neural Network model ELI5 - unfortunately requires training model 
+            from scratch
+        '''
 
-        if self.neural_network_model is None:
+        # Check if training data is present
+        if self.training_data is None:
             messagebox.showinfo(
-                message='you must train or load a Neural Network model before you can predict with it')
+                message="No Training Data! Neural Network must be trained to analyse weights")
             return
+        
+        # Grab model weights from eli5
+        from eli5 import show_weights
+        from eli5.sklearn import PermutationImportance
+        from keras.wrappers.scikit_learn import KerasRegressor
+        
+        # create permutationimportance object
+        my_model = KerasRegressor(build_fn=self.construct_model, epochs=int(self.epochs.get()),
+                                  batch_size=60)
+        my_model.fit(self.X_train, self.y_train)
+        perm = PermutationImportance(my_model, random_state=1).fit(self.X_test, self.y_test)
+        html_obj_weights = show_weights(perm, feature_names = self.feature_names, top=100)
 
-        ''' UNDER CONSTRUCTION'''
-        pass
+        # Create popup window
+        prediction_popup = Toplevel()
+        prediction_popup.title('View Neural Network Weights')
+
+        # TK Browser- Cannot be run in a thread - causes thread apartment error
+        import tkinterweb
+
+        # push HTML data from object (using .data attribute) to HTMLLabel library to display
+        frame = tkinterweb.HtmlFrame(prediction_popup)
+        frame.load_html(html_obj_weights.data)
+        frame.pack()
+        
+
+
 
     def inspect_brt_weights(self):
         ''' Inspects the Gradient Boosted Tree model with eli5  '''
@@ -880,7 +907,7 @@ class ResearchQueryTool:
         prediction_popup = Toplevel()
         prediction_popup.title('View Gradient Boosted Regression Tree Weights')
 
-        # TK Browser- Cannot be run in a thread - causes thread apartment error - consider implementing https://pypi.org/project/tkthread/
+        # TK Browser- Cannot be run in a thread - causes thread apartment error
         import tkinterweb
 
         # push HTML data from object (using .data attribute) to HTMLLabel library to display
@@ -965,7 +992,6 @@ class ResearchQueryTool:
         self.feature_names.pop()
 
         from sklearn.model_selection import train_test_split
-        print("Running training")
 
         # get number of columns (including y-variable / labels) and drop NaN rows
         self.number_of_columns = self.training_data.shape[1]
@@ -988,17 +1014,8 @@ class ResearchQueryTool:
         ''' Displays the training data grabbed from clipboard - for debugging'''
         data = pd.DataFrame(self.X_train)
         self.popup_tree(data, results_window=False)
-
-    def train_model_nn(self):
-        ''' Trains the neural network model and stores it as an instance variable '''
-
-        # Check if training data is present
-        if self.training_data is None:
-            messagebox.showinfo(
-                message="No Training Data! Capture it from Clipboard first")
-            return
-
-        print("loading libraries")
+    
+    def construct_model(self):
         from keras.models import Sequential
         from keras.layers import Dense
         from keras.metrics import MeanAbsoluteError
@@ -1019,7 +1036,21 @@ class ResearchQueryTool:
         # compile model
         self.neural_network_model.compile(
             loss='mse', optimizer='adam', metrics=[MeanAbsoluteError()])
+        return self.neural_network_model
 
+
+    def train_model_nn(self):
+        ''' Trains the neural network model and stores it as an instance variable '''
+
+        # Check if training data is present
+        if self.training_data is None:
+            messagebox.showinfo(
+                message="No Training Data! Capture it from Clipboard first")
+            return
+
+        print("loading libraries")
+        self.neural_network_model = self.construct_model()
+        
         # train model and store training history
         history = self.neural_network_model.fit(self.X_train, self.y_train, epochs=int(
             self.epochs.get()), batch_size=60, validation_split=0.25)
@@ -1278,7 +1309,6 @@ class ResearchQueryTool:
 
     def run_query(self, query):
         ''' runs an SQLite query via Pandas and returns the dataframe or empty dataframe if query fails'''
-        print(query)
         conn = sqlite3.Connection(self.database)
         try:
             df = pd.read_sql(f"{query}", conn)
@@ -1289,7 +1319,6 @@ class ResearchQueryTool:
 
     def run_clean_query(self, query):
         ''' runs an SQLite query via Pandas, replaces string nan with NaNs, drops NaN returns the dataframe '''
-        print(query)
         conn = sqlite3.Connection(self.database)
         df = pd.read_sql(f"{query}", conn)
         df = df.replace('nan', np.nan)
