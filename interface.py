@@ -290,11 +290,11 @@ class ResearchQueryTool:
             )
         self.buildmodelmenu.add_command(
             label="Grab Training Data from Clipboard", 
-            command=lambda: self.grab_data()
+            command=lambda: self.grab_train_data()
             )
         self.buildmodelmenu.add_command(
             label="Display Training Data", 
-            command=lambda: self.display_data()
+            command=lambda: self.display_train_data()
             )
         self.buildmodelmenu.add_command(
             label="Train Neural Network", 
@@ -304,7 +304,14 @@ class ResearchQueryTool:
             label="Train Gradient Boosted Trees", 
             command=lambda: self.train_model_brt()
             )
-
+        self.buildmodelmenu.add_command(
+            label="Grab Testing Data from Clipboard", 
+            command=lambda: self.grab_test_data()
+            )
+        self.buildmodelmenu.add_command(
+            label="Display Testing Data", 
+            command=lambda: self.display_test_data()
+            )
         # add INSPECT MODEL Menu items
         self.inspectmodelmenu.add_command(
             label="Inspect Neural Network Model Weights", 
@@ -965,7 +972,7 @@ class ResearchQueryTool:
 
     ''' ------------------------------------------------- ML Model Training / Saving Methods  ------------------------------------------------- '''
 
-    def grab_data(self):
+    def grab_train_data(self):
         ''' Reads ML model training data from clipboard '''
 
         self.training_data = pd.read_clipboard(sep='\\s+')
@@ -999,10 +1006,44 @@ class ResearchQueryTool:
         self.X_train, self.X_test, self.y_train, self.y_test = train_test_split(
             X, y, test_size=0.2, random_state=0)
 
-    def display_data(self):
+    def grab_test_data(self):
+        ''' Reads ML model training data from clipboard '''
+
+        self.training_data = pd.read_clipboard(sep='\\s+')
+
+        print(
+            f"Captured Dataframe with original dimension : {self.training_data.shape}")
+        self.training_data = self.training_data._get_numeric_data()
+        print(
+            f"Dimension after dropping non-numeric data : {self.training_data.shape}")
+
+        # grab column names and store as features
+        self.feature_names = self.training_data.columns.tolist()
+        self.feature_names.pop()
+
+        # get number of columns (including y-variable / labels) and drop NaN rows
+        self.number_of_columns = self.training_data.shape[1]
+        dataset = self.training_data.dropna(0)
+
+        # split into input X and output y variables
+        dataset = dataset.to_numpy()
+
+        # capture training data by slicing out the x and the y
+        X = dataset[:, 0: self.number_of_columns-1]
+
+        # set to float type
+        X = np.asarray(X).astype('float32')
+        self.X_test = X
+
+    def display_train_data(self):
         ''' Displays the training data grabbed from clipboard - for debugging'''
         data = pd.DataFrame(self.X_train)
         self.popup_tree(data, results_window=False)
+
+    def display_test_data(self):
+        ''' Displays the testing data grabbed from clipboard - for debugging'''
+        data = pd.DataFrame(self.X_test)
+        self.popup_tree(data, results_window=True)
     
     def construct_model(self):
         from keras.models import Sequential
