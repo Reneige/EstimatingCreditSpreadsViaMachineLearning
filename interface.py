@@ -1007,7 +1007,7 @@ class ResearchQueryTool:
             X, y, test_size=0.2, random_state=0)
 
     def grab_test_data(self):
-        ''' Reads ML model training data from clipboard '''
+        ''' Reads ML model training data from clipboard - DO NOT INCLUDE Y VAR'''
 
         self.training_data = pd.read_clipboard(sep='\\s+')
 
@@ -1019,17 +1019,12 @@ class ResearchQueryTool:
 
         # grab column names and store as features
         self.feature_names = self.training_data.columns.tolist()
-        self.feature_names.pop()
 
-        # get number of columns (including y-variable / labels) and drop NaN rows
-        self.number_of_columns = self.training_data.shape[1]
+        # Drop rows with NA data
         dataset = self.training_data.dropna(0)
 
-        # split into input X and output y variables
-        dataset = dataset.to_numpy()
-
-        # capture training data by slicing out the x and the y
-        X = dataset[:, 0: self.number_of_columns-1]
+        # Convert dataframe to numpy
+        X = dataset.to_numpy()
 
         # set to float type
         X = np.asarray(X).astype('float32')
