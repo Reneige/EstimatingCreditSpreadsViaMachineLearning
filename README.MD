@@ -8,7 +8,7 @@
 
 ## Background
 
-This tool was developed as part of an ongoing research project into the use of machine learning algorithms to predict credit spreads on corporate bonds. It implements a Neural Networks models via TensorFlow as well as a Gradient Boosted Regression Trees model via XGBoost. It also allows for model exploration and interpretation of results by impementing the Eli5 and LIME Libraries. Fundamentally, The tool creates the the ability to parse the raw research data from unstructured Excel Files into a SQLite database so that it can be transformed into a functional machine learning data set. This tool also provides some data analysis ability to examine the data quality. 
+This tool was developed as part of an ongoing research project into the use of machine learning algorithms to predict credit spreads on corporate bonds. It implements a Neural Networks models via TensorFlow as well as a Gradient Boosted Regression Trees model via XGBoost. It also allows for model exploration and interpretation of model results by implementing the Eli5 and LIME Libraries. Fundamentally, The tool creates the ability to parse the raw research data from unstructured Excel Files into a SQLite database so that it can be transformed into a functional machine learning data set. This tool also provides some data analysis ability to examine the data quality. 
 
 For more information on the research, refer to the research.docx document file (currently a work in progress) available here:  https://github.com/Reneige/EstimatingCreditSpreadsViaMachineLearning/tree/master/Results%20April7-2023/Documentation
 
