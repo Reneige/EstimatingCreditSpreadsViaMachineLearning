@@ -4,8 +4,6 @@ Created on Thu Mar 30 21:24:30 2023
 
 @author: Rene Alby
 
-
-
 Note all SQL is all hosted locally via SQLite so there is no risk of injection attack. 
 
 The SQL Database is produced by parsing and formatting doanloaded data files in the data_aggregator.py code
@@ -26,7 +24,14 @@ class sql:
                        INNER JOIN Prices
                        ON Master.ISIN = Prices.ISIN
                        ORDER BY Master.Issuer"""
-
+    
+    # used to generate zspreads off all the available bond prices
+    all_bond_data = """SELECT DISTINCT Prices.*, Master.Issuer, Master.Coupon, strftime('%d-%m-%Y', Master.Maturity) AS Maturity, Master.IssueDate, Master.FirstCouponDate, Master.CouponFrequency
+                            FROM Master 
+                            INNER JOIN Prices
+                            ON Master.ISIN = Prices.ISIN
+                            ORDER BY Prices.Date"""
+    
     # schema
     schema = "SELECT * FROM sqlite_schema"
     schema_tables = "SELECT name FROM sqlite_schema"
@@ -61,9 +66,11 @@ class sql:
     debtequity = tonumeric("TotalDebtPercentageofTotalEquity")
     cash = tonumeric("CashCashEquivalents")
 
-    # The ResearchQueryTool.RecursiveMergeByIsin() function takes a list of the above financial queries and pops them until the recursive
-    # function terminates. Therefore, I need to define a new list each time it is run. Using the function below solves this.
-    # A single implementation of this list would only function once, because after the recursive function pops all elements, the list would be empty.
+    '''    
+    The ResearchQueryTool.RecursiveMergeByIsin() function takes a list of the above financial queries and pops them until the recursive
+    function terminates. Therefore, I need to define a new list each time it is run. Using the function below solves this.
+    A single implementation of this list would only function once, because after the recursive function pops all elements, the list would be empty.
+    '''
 
     def key_fins_queries():
         return [sql.quick,

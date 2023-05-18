@@ -12,6 +12,7 @@ from itertools import repeat
 import datetime
 import math
 from Progress_Bar import Progress_Bar
+from sql import sql
 
 def timeshift(string):
     return (str(int(string[0:4])+1)+"-"+string[5:7]+"-"+str(int(string[8:10])))
@@ -38,7 +39,7 @@ def construct_payment_timeseries(maturity_date,months_between_coupons, number_of
         coupon_date = coupon_date - relativedelta(months=months_between_coupons)
         coupon_dates_list.append(coupon_date)
         payment.append(coupon)
-    #payment[-1] = payment[-1]+100
+    
     coupon_dates_list.reverse()
     payment.reverse()
     return [coupon_dates_list, payment]
@@ -77,15 +78,8 @@ def discounted_cf(cf, days, spot_yield):
 
 def discounted_cf_w_spread(cf, days, spot_yield, spread):
     ''' calculates the discounted cash flow using the spot yield and days to maturity whilst applying a spread'''
-    #print(f"cf: {cf} spot_yield: {spot_yield} spread: {spread} days: {days}")
     return cf/(math.pow((1+spot_yield+spread),(days/365.25)))
 
-
-tst = """SELECT DISTINCT Prices.*, Master.Issuer, Master.Coupon, strftime('%d-%m-%Y', Master.Maturity) AS Maturity, Master.IssueDate, Master.FirstCouponDate, Master.CouponFrequency
-                   FROM Master 
-                   INNER JOIN Prices
-                   ON Master.ISIN = Prices.ISIN
-                   ORDER BY Prices.Date"""
 
 
 class ZSpread_Calculator:
@@ -93,7 +87,7 @@ class ZSpread_Calculator:
         self.database = "./database.db"
         self.val_curve_db = "./valuation_curve.db"
         # get bonds with prices from db
-        self.allbonds = self.query(tst, self.database)
+        self.allbonds = self.query(sql.all_bond_data, self.database)
 
     def run(self):
         calcs = []
@@ -235,12 +229,10 @@ class ZSpread_Calculator:
                     while calculated_price > dirty_market_price:
                         spread += precision
                         calculated_price = sum(list(map(discounted_cf_w_spread, valuation_series[1], valuation_series[2], valuation_series[3], repeat(spread))))
-                       # print(f"spread : {spread}   calc price {calculated_price}   target   {dirty_market_price}")
                 if calculated_price < dirty_market_price:
                     while calculated_price < dirty_market_price:
                         spread -= precision
                         calculated_price = sum(list(map(discounted_cf_w_spread, valuation_series[1], valuation_series[2], valuation_series[3], repeat(spread))))
-                      #  print(f"spread : {spread}   calc price {calculated_price}   target   {dirty_market_price}")
             spreads.append(spread*10000)
             dirtyprices.append(dirty_market_price)
         self.bonds['Calculated_DirtyPrice'] = dirtyprices

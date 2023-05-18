@@ -8,12 +8,12 @@ The purpose of this tool is to aggregate data for research in machine learning a
 bond markets. The tool is designed so that research data can be dropped into the './data/GBP Bonds' subfolder 
 and be immediately integrated into the dataset by clicking the 'Rebuild Database' menu from the Database 
 drop-down menu. Then the data can be browsed to ensure it is being captured correctly in the data model. 
-Finally, clicking the 'Generate Research Data Table' button will run all the required queries to build the 
-data set. The tool also now allows training Neural Networks and Gradient Boosted Regression trees from within
+clicking the 'Build ML Training Data Set' will run all the required sql queries to build the 
+final ML training data set. The tool also now allows training Neural Networks and Gradient Boosted Regression trees from within
 the application. The results can then be audited using LIME and Eli5. The ML models can be saved and re-used for
 analysis at a later date. 
 
-Note all SQL is all hosted locally via SQLite so there is no risk of injection attack
+Note all SQL is stored in the filesystem via SQLite so there is no risk of injection attack
 
 """
 
@@ -27,7 +27,6 @@ from threading import Thread
 import xlwings as xw
 import numpy as np
 from sql import sql
-import datetime
 import os
 import pickle
 
