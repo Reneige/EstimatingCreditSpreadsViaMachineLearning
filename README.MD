@@ -10,7 +10,7 @@
 
 This tool was developed as part of an ongoing research project into the use of machine learning algorithms to predict credit spreads in the corporate bond market. It implements a Neural Networks models via TensorFlow as well as a Gradient Boosted Regression Trees model via XGBoost. It also allows for model exploration and prediction interpretation by implementing the Eli5 and LIME Libraries. The tool creates the ability to parse the raw research data from unstructured Excel Files into a SQLite database so that it can be transformed into a functional machine learning data set. This tool also provides some data analysis ability to ensure data quality was at a sufficient level. 
 
-For more information on the research, refer to the research document file available here:  https://github.com/Reneige/EstimatingCreditSpreadsViaMachineLearning/blob/master/Documentation/
+For more information on the research, refer to the research document file available here:  <a href="https://github.com/Reneige/EstimatingCreditSpreadsViaMachineLearning/blob/master/Documentation/Rene%20Alby%20-%20Estimating%20Credit%20Risk%20Premiums%20with%20Gradient%20Boosted%20Regression%20Trees%20and%20Neural%20Networks.pdf"> Estimating Credit Risk Premiums via Gradient Boosted Regression Trees and Neural Networks - Rene Alby, May 2023</a>
 
 ## Getting Started
 
