@@ -26,3 +26,6 @@ IMPORTANT: When running for the first time you must build the valuation curve da
 
 <img src="https://github.com/Reneige/EstimatingCreditSpreadsViaMachineLearning/blob/master/Documentation/AppScreenshot.jpg" alt="Screenshot of Python based Research Application - Rene Alby, May 2023">
 
+
+
+Author: Rene Alby
