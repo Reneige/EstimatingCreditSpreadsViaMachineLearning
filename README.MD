@@ -22,7 +22,7 @@ IMPORTANT: When running for the first time you must build the valuation curve da
 2. Calculate the z-spreads: Menu -> Database -> Calculate Z-Spread Analytics
 (must be performed in order specified)
 
-## Screenshot of Research App
+## Screenshot
 
 <img src="https://github.com/Reneige/EstimatingCreditSpreadsViaMachineLearning/blob/master/Documentation/AppScreenshot.jpg" alt="Screenshot of Python based Research Application - Rene Alby, May 2023">
 
